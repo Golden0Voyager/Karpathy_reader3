@@ -1,14 +1,56 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-
-# Custom
+# Book data (extracted images, pkl, etc.)
 *_data/
+
+# TTS cache
+.tts_cache/
+
+# Library metadata cache
+.library_index.json
+
+# EPUB source files
 *.epub
+
+# Dictionary data
+dict/
+
+# Test files
+test_*.py
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# AI config (contains API keys)
+ai_config.json
+
+# Package build artifacts
+package/*.pdf
+package/reader3-release/
+package/reader3-release.zip
+# Allow .env.example (overrides parent .env.* rule)
+!package/.env.example
+package/*.epub
+
+# --- bkit / PDCA metadata ---
+docs/.pdca-snapshots/
+docs/.pdca-status.json
+docs/.bkit-memory.json
+
+# 敏感环境配置文件（截获 .env）
+.env
+.env.*
+
+# 插件及工具生成的本地配置（截获 settings.local.json）
+settings.local.json
+.claude/
+.gemini/
+
+# 日志文件（截获 server.log）
+*.log
+
+# PDCA 状态文件（补全根目录下的路径，截获 .pdca-status.json）
+.pdca-status.json
