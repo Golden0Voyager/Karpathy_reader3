@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%238B5CF6'/><stop offset='100%' stop-color='%236D28D9'/></linearGradient></defs><rect width='100' height='100' rx='20' fill='url(%23g)'/><path d='M50 25 C50 25 30 28 22 32 L22 72 C30 68 50 65 50 65 C50 65 70 68 78 72 L78 32 C70 28 50 25 50 25Z' fill='none' stroke='white' stroke-width='3' stroke-linejoin='round'/><line x1='50' y1='25' x2='50' y2='65' stroke='white' stroke-width='2.5'/><path d='M30 42 L42 42' stroke='white' stroke-width='2' stroke-linecap='round' opacity='.6'/><path d='M30 50 L40 50' stroke='white' stroke-width='2' stroke-linecap='round' opacity='.6'/><path d='M58 42 L70 42' stroke='white' stroke-width='2' stroke-linecap='round' opacity='.6'/><path d='M60 50 L70 50' stroke='white' stroke-width='2' stroke-linecap='round' opacity='.6'/></svg>">
     <title>{{ book.metadata.title }} — Reader 3</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@850&display=swap&text=中" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
     <style>
         /* --- 1. Global Performance & Vars --- */
         * { box-sizing: border-box; }
@@ -55,6 +61,9 @@
         #sidebar::-webkit-scrollbar, #main-scroll::-webkit-scrollbar, .ai-content::-webkit-scrollbar { width: 3px; background: transparent; }
         #sidebar::-webkit-scrollbar-thumb, #main-scroll::-webkit-scrollbar-thumb, .ai-content::-webkit-scrollbar-thumb { background: transparent; border-radius: 10px; transition: 0.3s; }
         #sidebar:hover::-webkit-scrollbar-thumb, #main-scroll:hover::-webkit-scrollbar-thumb, .ai-content:hover::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); }
+        #notebook-panel, #search-panel .sp-results { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.1) transparent; }
+        #notebook-panel::-webkit-scrollbar, #search-panel .sp-results::-webkit-scrollbar { width: 3px; }
+        #notebook-panel::-webkit-scrollbar-thumb, #search-panel .sp-results::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
 
         /* --- 3. Satellite Controls & Audio Floating Console --- */
         .toggle-btn {
@@ -70,12 +79,44 @@
         .toggle-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
         
         /* Top Satellites */
-        #toggle-left { top: 30px; left: calc(var(--sidebar-width) + 30px); }
-        #sidebar.collapsed ~ #toggle-left { left: 30px; }
         #toggle-right { top: 30px; right: calc(var(--panels-width) + 30px); }
         #panels-container.collapsed ~ #toggle-right { right: 30px; }
-        #toggle-settings { top: 75px; right: calc(var(--panels-width) + 30px); }
-        #panels-container.collapsed ~ #toggle-settings { right: 30px; }
+
+        /* Left button group: menu + sub-buttons */
+        .toggle-group {
+            position: fixed; top: 30px; left: calc(var(--sidebar-width) + 30px);
+            z-index: 2000; display: flex; flex-direction: column; align-items: center; gap: 0;
+            transition: left 0.3s var(--transition);
+        }
+        #sidebar.collapsed ~ .toggle-group { left: 30px; }
+        .toggle-group .toggle-btn { position: static; }
+        /* Hamburger → collapse icon swap on hover */
+        #toggle-left .icon-collapse { display: none; transition: transform 0.3s ease; }
+        #sidebar.collapsed ~ .toggle-group #toggle-left .icon-collapse { transform: scaleX(-1); }
+        .toggle-group:hover #toggle-left .icon-hamburger,
+        .toggle-group.expanded #toggle-left .icon-hamburger { display: none; }
+        .toggle-group:hover #toggle-left .icon-collapse,
+        .toggle-group.expanded #toggle-left .icon-collapse { display: block; }
+        .toggle-group .toggle-sub {
+            opacity: 0; transform: scale(0.6) translateY(-12px); pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            margin-top: 30px; transition-delay: 0s;
+        }
+        .toggle-group:hover .toggle-sub,
+        .toggle-group.expanded .toggle-sub {
+            opacity: 1; transform: scale(1) translateY(0); pointer-events: auto;
+        }
+        /* Staggered cascade: top → bottom on enter */
+        .toggle-group:hover .toggle-sub:nth-child(2),
+        .toggle-group.expanded .toggle-sub:nth-child(2) { transition-delay: 0.03s; }
+        .toggle-group:hover .toggle-sub:nth-child(3),
+        .toggle-group.expanded .toggle-sub:nth-child(3) { transition-delay: 0.09s; }
+        .toggle-group:hover .toggle-sub:nth-child(4),
+        .toggle-group.expanded .toggle-sub:nth-child(4) { transition-delay: 0.15s; }
+        /* Reverse stagger on leave: bottom disappears first */
+        .toggle-group .toggle-sub:nth-child(2) { transition-delay: 0.06s; }
+        .toggle-group .toggle-sub:nth-child(3) { transition-delay: 0.03s; }
+        .toggle-group .toggle-sub:nth-child(4) { transition-delay: 0s; }
 
         /* BOTTOM: Audio Console (inline in AI panel) */
         #audio-console {
@@ -87,15 +128,101 @@
         }
         #audio-console.visible { max-height: 80px; opacity: 1; padding-top: 10px; padding-bottom: 10px; }
 
-        .player-actions { display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .player-actions { display: flex; justify-content: center; align-items: center; gap: 16px; }
+        .player-label {
+            background: none; border: none; cursor: pointer;
+            color: var(--secondary); padding: 8px; border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1); display: flex; align-items: center; justify-content: center;
+        }
+        .player-label:hover { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); transform: scale(1.12); }
+        .player-label:active { transform: scale(0.95); }
+        .player-label svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.3s ease; }
+
+        /* Audio popup menus */
+        .audio-popup {
+            position: fixed; display: none; z-index: 2900;
+            background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
+            border: 1px solid var(--outline); border-radius: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+            overflow: hidden; animation: toolbarIn 0.15s ease-out;
+        }
+        .audio-popup.visible { display: flex; flex-direction: column; }
+        .audio-popup-list { overflow-y: auto; padding: 5px; max-height: 280px; scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.1) transparent; position: relative; }
+        .audio-popup-list::-webkit-scrollbar { width: 3px; }
+        .audio-popup-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+        .audio-popup-list { overflow-y: auto; padding: 5px; max-height: 280px; scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.1) transparent; position: relative; }
+        .ap-slider {
+            position: absolute; top: 0; left: 5px; right: 5px; border-radius: 7px;
+            background: color-mix(in srgb, var(--primary) 10%, transparent);
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), height 0.2s ease;
+            pointer-events: none; z-index: 0;
+        }
+        .ap-group { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--secondary); padding: 8px 12px 4px; opacity: 0.6; position: relative; z-index: 1; }
+        .ap-item {
+            padding: 6px 12px; border-radius: 7px; cursor: pointer;
+            font-size: 0.78rem; color: var(--on-surface); transition: color 0.2s;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            position: relative; z-index: 1;
+        }
+        .ap-item:hover { background: none; }
+        .ap-item::before { content: ''; position: absolute; inset: 3px 0; border-radius: 7px; background: transparent; transition: background 0.2s; z-index: -1; }
+        .ap-item:hover::before { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+        .ap-item.active { color: var(--primary); font-weight: 700; }
+        .ap-check { font-size: 0.7rem; opacity: 0; transition: opacity 0.2s; }
+        .ap-item.active .ap-check { opacity: 1; }
+
+        /* Speed slider popup */
+        .speed-slider-wrap {
+            padding: 16px 20px 12px; width: 260px;
+        }
+        .speed-track {
+            position: relative; height: 4px; background: #E2E8F0; border-radius: 2px; margin: 0 6px;
+        }
+        .speed-fill {
+            position: absolute; left: 0; top: 0; height: 100%; background: var(--primary); border-radius: 2px;
+            transition: width 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .speed-thumb {
+            position: absolute; top: 50%; width: 18px; height: 18px;
+            background: var(--primary); border: none; border-radius: 50%;
+            background-image: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 4px rgba(0,0,0,0.1);
+            transform: translate(-50%, -50%);
+            transition: left 0.2s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s, box-shadow 0.2s;
+        }
+        .speed-thumb:hover {
+            transform: translate(-50%, -50%) scale(1.08);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 4px rgba(0,0,0,0.12), 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+        }
+        .speed-thumb:active, .speed-thumb.dragging {
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.3), 0 1px 3px rgba(0,0,0,0.1), 0 0 0 5px color-mix(in srgb, var(--primary) 25%, transparent);
+        }
+        .speed-thumb::before {
+            content: ''; position: absolute; inset: -8px; border-radius: 50%;
+        }
+        .speed-labels {
+            display: flex; justify-content: space-between; margin-top: 14px; padding: 0 2px;
+        }
+        .speed-label-dot {
+            font-size: 0.65rem; font-weight: 700; color: var(--secondary);
+            cursor: pointer; padding: 2px 0; transition: color 0.2s;
+            text-align: center; min-width: 24px; opacity: 0.5;
+        }
+        .speed-label-dot:hover { color: var(--primary); opacity: 1; }
+        .speed-label-dot.active { color: var(--primary); opacity: 1; }
         .icon-btn { background: none; border: none; padding: 8px; cursor: pointer; color: var(--secondary); transition: 0.2s; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .icon-btn:hover { background: rgba(0,0,0,0.05); color: var(--primary); }
-        .play-main { width: 36px; height: 36px; background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); }
-        .play-main:hover { transform: scale(1.05); }
+        .play-main { width: 36px; height: 36px; background: var(--primary); color: white; box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 35%, transparent); transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+        .play-main:hover { transform: scale(1.1); box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 45%, transparent); background: color-mix(in srgb, var(--primary) 85%, black); }
+        .play-main:active { transform: scale(0.93); box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent); background: color-mix(in srgb, var(--primary) 75%, black); }
         .progress-line { width: 100%; height: 2px; background: rgba(0,0,0,0.05); border-radius: 1px; position: relative; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; border-radius: 1px; transition: width 0.1s linear; }
 
         .rotated { transform: rotate(180deg); }
+        #toggle-right { transition: transform 0.3s ease; }
+        #toggle-right:hover { transform: rotate(180deg); }
+        #toggle-right.rotated:hover { transform: rotate(0deg); }
 
         /* --- 4. Content Area --- */
         .content-container { max-width: var(--content-max-width); margin: 0 auto; padding: 100px 40px 180px; transition: max-width 0.3s var(--transition); width: 100%; box-sizing: border-box; }
@@ -106,31 +233,22 @@
         .book-content > div:first-child:has(> svg),
         .book-content > div:first-child:has(> img) { display: flex; justify-content: center; align-items: center; max-height: 85vh; margin-bottom: 2rem; }
         .book-content > div:first-child > svg,
-        .book-content > img:first-child { width: 100%; max-height: 85vh; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
-        .book-content > div:first-child > img { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
+        .book-content > img:first-child { width: 100%; max-height: 85vh; object-fit: contain; }
+        .book-content > div:first-child > img { max-width: 100%; max-height: 85vh; object-fit: contain; }
         .book-content p { margin-bottom: 1.8rem; text-align: justify; position: relative; padding: 8px; border-radius: 8px; transition: 0.3s; }
         .book-content p::before { content: ''; position: absolute; left: -36px; top: 0; width: 36px; height: 100%; }
         .book-content p:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
         .nav-link { color: var(--primary); text-decoration: none; font-weight: 800; font-size: 0.8rem; letter-spacing: 0.1em; padding: 6px 14px; border-radius: 8px; transition: all 0.25s ease; }
         .nav-link:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
         
-        .p-play, .p-translate { position: absolute; left: -32px; opacity: 0; transition: opacity 0.2s ease; pointer-events: none; transform: translateY(-50%); }
-        .book-content p:hover .p-play,
-        .book-content p:hover .p-translate { opacity: 1; pointer-events: auto; }
-        /* Single button: center vertically */
-        .p-play { top: 50%; }
-        .p-translate { top: 50%; }
-        /* Both visible: play on top, translate below */
-        .book-content p .p-play { top: calc(50% - 14px); }
-        .book-content p .p-translate { top: calc(50% + 14px); }
-        /* Only TTS visible: center it */
-        .hide-inline-translate p .p-play { top: 50%; }
-        /* Only translate visible: center it */
-        .hide-tts p .p-translate { top: 50%; }
-        .hide-inline-translate .p-translate { display: none !important; }
-        .hide-tts .p-play { display: none !important; }
-        .p-btn { background: var(--surface); border: 1px solid var(--outline); width: 24px; height: 24px; border-radius: 6px; font-size: 0.65rem; font-weight: 800; color: var(--primary); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease; }
-        .p-btn:hover { transform: translateY(-50%) scale(1.1); }
+        /* Floating para action buttons */
+        #floating-para-btns { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 100; opacity: 0; transform: translateY(-50%) scale(0.9); transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        #floating-para-btns.visible { opacity: 1; pointer-events: auto; transform: translateY(-50%) scale(1); }
+        #floating-para-btns.relocating { opacity: 0; transform: translateY(-50%) scale(0.9); transition: opacity 0.12s ease-out, transform 0.12s ease-out; }
+        #floating-para-btns .p-btn { pointer-events: auto; opacity: 0.6; transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        #floating-para-btns .p-btn:hover { opacity: 1; }
+        .p-btn { background: var(--surface); border: 1px solid var(--outline); width: 28px; height: 28px; border-radius: 7px; font-size: 0.65rem; font-weight: 800; color: var(--primary); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease; overflow: visible; }
+        .p-btn:hover { transform: scale(1.1); }
         .p-translation { margin: 8px 0 4px; padding: 10px 14px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); border-left: 3px solid var(--primary); border-radius: 0 8px 8px 0; font-size: 0.85em; line-height: 1.7; color: var(--on-surface); animation: fadeIn 0.3s; }
         .p-translation .loading-hint { color: var(--secondary); font-size: 0.8em; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 0.85; transform: none; } }
@@ -138,41 +256,268 @@
         /* --- 5. Settings Card --- */
         #settings-panel {
             position: fixed; top: 80px; width: 330px; background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
-            border: 1px solid var(--outline); border-radius: 20px; padding: 24px; box-shadow: 0 25px 60px rgba(0,0,0,0.15); z-index: 3000; display: none; transition: right 0.3s var(--transition);
+            border: 1px solid var(--outline); border-radius: 20px; padding: 24px; box-shadow: 0 25px 60px rgba(0,0,0,0.15); z-index: 3000; display: none; transition: left 0.3s var(--transition);
         }
-        #panels-container.collapsed ~ #settings-panel { right: 120px; }
-        #panels-container:not(.collapsed) ~ #settings-panel { right: calc(var(--panels-width) + 120px); }
+        #sidebar.collapsed ~ #settings-panel { left: 70px; }
+        #sidebar:not(.collapsed) ~ #settings-panel { left: calc(var(--sidebar-width) + 70px); }
 
-        .theme-dot { width: 30px; height: 18px; border-radius: 15px; cursor: pointer; border: 1px solid rgba(0,0,0,0.06); background-image: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%); box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 3px rgba(0,0,0,0.08); transition: 0.2s; }
-        .theme-dot:hover { transform: scale(1.1); box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.12); }
+        /* --- Search Panel --- */
+        #search-panel {
+            position: fixed; top: 80px; width: 330px; max-height: 70vh;
+            background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
+            border: 1px solid var(--outline); border-radius: 20px; padding: 24px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.15); z-index: 3000; display: none;
+            transition: left 0.3s var(--transition);
+        }
+        #sidebar.collapsed ~ #search-panel { left: 70px; }
+        #sidebar:not(.collapsed) ~ #search-panel { left: calc(var(--sidebar-width) + 70px); }
+        #search-panel .sp-input-wrap {
+            display: flex; gap: 8px; margin-bottom: 12px;
+        }
+        #search-panel .sp-input {
+            flex: 1; padding: 8px 12px; border: 1px solid var(--outline); border-radius: 10px;
+            font-size: 0.8rem; background: var(--surface); color: var(--on-surface); outline: none;
+            font-family: inherit; transition: border-color 0.2s;
+        }
+        #search-panel .sp-input:focus { border-color: var(--primary); }
+        #search-panel .sp-info {
+            font-size: 0.65rem; color: var(--secondary); margin-bottom: 10px; opacity: 0.7;
+        }
+        #search-panel .sp-results {
+            overflow-y: auto; max-height: calc(70vh - 100px);
+        }
+        #search-panel .sp-item {
+            padding: 10px 12px; margin-bottom: 6px; border-radius: 10px; cursor: pointer;
+            background: color-mix(in srgb, var(--outline) 50%, transparent);
+            transition: background 0.15s; font-size: 0.8rem; line-height: 1.6; color: var(--on-surface);
+        }
+        #search-panel .sp-item:hover { background: var(--outline); }
+        #search-panel .sp-item mark {
+            background: color-mix(in srgb, var(--primary) 25%, transparent);
+            color: var(--primary); font-weight: 700; border-radius: 2px; padding: 0 1px;
+        }
+        #search-panel .sp-item-meta {
+            font-size: 0.6rem; color: var(--secondary); opacity: 0.6; margin-top: 4px;
+        }
+        #search-panel .sp-empty { font-size: 0.8rem; color: var(--secondary); opacity: 0.5; text-align: center; padding: 20px 0; }
+        /* Search scope tabs */
+        .sp-scope-tabs {
+            display: flex; position: relative; margin-bottom: 12px;
+            background: color-mix(in srgb, var(--outline) 50%, var(--surface));
+            padding: 3px; border-radius: 8px;
+        }
+        .sp-scope-tab {
+            flex: 1; background: none; border: none; padding: 5px 0; font-size: 0.7rem;
+            font-weight: 700; color: var(--secondary); cursor: pointer; border-radius: 6px;
+            position: relative; z-index: 1; transition: color 0.3s ease; text-align: center;
+        }
+        .sp-scope-tab.active { color: var(--primary); }
+        .sp-scope-slider {
+            position: absolute; top: 3px; left: 3px; height: calc(100% - 6px);
+            background: var(--surface); border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), width 0.25s ease;
+            z-index: 0;
+        }
+        #search-panel .sp-loading { font-size: 0.75rem; color: var(--secondary); text-align: center; padding: 16px 0; opacity: 0.6; }
+        #search-panel .sp-item-other { opacity: 0.7; }
+        #search-panel .sp-item-other:hover { opacity: 1; }
+
+        /* --- Notebook Panel --- */
+        #notebook-panel {
+            position: fixed; top: 80px; width: 330px; max-height: 70vh;
+            background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
+            border: 1px solid var(--outline); border-radius: 20px; padding: 24px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.15); z-index: 3000; display: none;
+            overflow-y: auto; transition: left 0.3s var(--transition);
+        }
+        #sidebar.collapsed ~ #notebook-panel { left: 70px; }
+        #sidebar:not(.collapsed) ~ #notebook-panel { left: calc(var(--sidebar-width) + 70px); }
+        #notebook-panel .nb-header {
+            font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; color: var(--secondary);
+            margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
+        }
+        #notebook-panel .nb-count { font-weight: 400; opacity: 0.6; }
+        #notebook-panel .nb-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+        #notebook-panel .nb-search {
+            width: 100%; padding: 7px 10px 7px 30px; border: 1px solid var(--outline); border-radius: 8px;
+            font-size: 0.75rem; background: var(--surface); color: var(--on-surface); outline: none;
+            font-family: inherit; transition: border-color 0.2s;
+        }
+        #notebook-panel .nb-search:focus { border-color: var(--primary); }
+        #notebook-panel .nb-search-wrap {
+            position: relative;
+        }
+        #notebook-panel .nb-search-wrap::before {
+            content: ''; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            width: 12px; height: 12px; border: 1.5px solid var(--secondary); border-radius: 50%;
+            opacity: 0.5;
+        }
+        #notebook-panel .nb-search-wrap::after {
+            content: ''; position: absolute; left: 20px; top: calc(50% + 5px);
+            width: 1.5px; height: 5px; background: var(--secondary); opacity: 0.5;
+            transform: rotate(-45deg); transform-origin: top;
+        }
+        #notebook-panel .nb-filters {
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        #notebook-panel .nb-color-filters { display: flex; gap: 6px; align-items: center; }
+        #notebook-panel .nb-color-dot {
+            width: 14px; height: 14px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: all 0.15s; opacity: 0.6;
+        }
+        #notebook-panel .nb-color-dot:hover { opacity: 1; transform: scale(1.15); }
+        #notebook-panel .nb-color-dot.active { border-color: var(--on-surface); opacity: 1; }
+        #notebook-panel .nb-sort-btn {
+            background: none; border: 1px solid transparent; border-radius: 6px;
+            padding: 3px; cursor: pointer; color: var(--secondary); transition: all 0.15s;
+            display: flex; align-items: center; justify-content: center; opacity: 0.5;
+        }
+        #notebook-panel .nb-sort-btn:hover { opacity: 1; color: var(--primary); }
+        #notebook-panel .nb-sort-btn.active { opacity: 1; color: var(--primary); border-color: var(--primary); }
+        #notebook-panel .nb-sort-btn svg { width: 14px; height: 14px; }
+        #notebook-panel .nb-empty { font-size: 0.8rem; color: var(--secondary); opacity: 0.5; text-align: center; padding: 20px 0; }
+        #notebook-panel .nb-item {
+            padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; cursor: pointer;
+            background: color-mix(in srgb, var(--outline) 50%, transparent);
+            transition: background 0.15s;
+        }
+        #notebook-panel .nb-item:hover { background: var(--outline); }
+        #notebook-panel .nb-text { font-size: 0.8rem; line-height: 1.5; color: var(--on-surface); }
+        #notebook-panel .nb-note { font-size: 0.75rem; color: var(--primary); margin-top: 4px; font-style: italic; }
+        #notebook-panel .nb-meta { font-size: 0.6rem; color: var(--secondary); margin-top: 4px; opacity: 0.6; }
+        #notebook-panel .nb-chapter-label {
+            font-size: 0.65rem; font-weight: 700; color: var(--primary); margin: 14px 0 8px; padding-bottom: 4px;
+            border-bottom: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+        }
+        #notebook-panel .nb-chapter-label:first-child { margin-top: 0; }
+        #notebook-panel .nb-item-other { opacity: 0.7; }
+        #notebook-panel .nb-item-other:hover { opacity: 1; }
+
+        /* Notebook item actions */
+        #notebook-panel .nb-item { position: relative; }
+        #notebook-panel .nb-item-actions {
+            display: flex; align-items: center; justify-content: space-between; margin-top: 6px;
+            opacity: 0; transition: opacity 0.15s; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+        }
+        #notebook-panel .nb-item:hover .nb-item-actions { opacity: 1; }
+        #notebook-panel .nb-item-colors { display: flex; gap: 5px; align-items: center; }
+        #notebook-panel .nb-color-pick {
+            width: 12px; height: 12px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: all 0.15s; opacity: 0.7;
+        }
+        #notebook-panel .nb-color-pick:hover { opacity: 1; transform: scale(1.15); }
+        #notebook-panel .nb-color-pick.active { border-color: transparent; opacity: 1; transform: scale(1.25); }
+        #notebook-panel .nb-action-btns { display: flex; gap: 4px; }
+        .nb-action-btn {
+            background: none; border: 1px solid transparent; border-radius: 5px;
+            padding: 2px 6px; cursor: pointer; color: var(--secondary); font-size: 0.6rem;
+            transition: all 0.15s; display: flex; align-items: center; gap: 2px;
+        }
+        .nb-action-btn:hover { color: var(--primary); border-color: var(--outline); }
+        .nb-action-btn.nb-delete-btn:hover { color: #EF4444; border-color: #FECACA; }
+        .nb-action-btn svg { width: 11px; height: 11px; }
+
+        /* Inline edit area */
+        #notebook-panel .nb-item-edit {
+            margin-top: 6px; display: none;
+        }
+        #notebook-panel .nb-item-edit.visible { display: block; }
+        #notebook-panel .nb-item-edit textarea {
+            width: 100%; padding: 6px 8px; border: 1px solid var(--outline); border-radius: 6px;
+            font-size: 0.75rem; font-family: inherit; background: var(--surface); color: var(--on-surface);
+            resize: vertical; min-height: 48px; max-height: 120px; outline: none; transition: border-color 0.2s;
+        }
+        #notebook-panel .nb-item-edit textarea:focus { border-color: var(--primary); }
+        #notebook-panel .nb-edit-btns {
+            display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px;
+        }
+        #notebook-panel .nb-edit-btn {
+            padding: 3px 10px; border-radius: 5px; font-size: 0.65rem; cursor: pointer;
+            border: 1px solid var(--outline); background: var(--surface); color: var(--secondary);
+            transition: all 0.15s;
+        }
+        #notebook-panel .nb-edit-btn:hover { color: var(--primary); border-color: var(--primary); }
+        #notebook-panel .nb-edit-btn.nb-save-btn { background: var(--primary); color: white; border-color: var(--primary); }
+        #notebook-panel .nb-edit-btn.nb-save-btn:hover { opacity: 0.85; }
+
+        /* Delete confirm state */
+        .nb-action-btn.confirm-state { color: #EF4444; border-color: #EF4444; font-weight: 700; }
+
+        #lang-toggle {
+            position: absolute; top: 21px; right: 21px;
+            font-size: 0.75rem; font-weight: 900; letter-spacing: 0.05em;
+            color: #fff; cursor: pointer;
+            background: var(--primary); border: none; border-radius: 6px;
+            width: 36px; height: 24px; text-align: center;
+            perspective: 200px;
+        }
+        #lang-toggle .lang-inner {
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; height: 100%;
+            transition: transform 0.4s ease;
+            transform-style: preserve-3d;
+            position: relative;
+        }
+        #lang-toggle .lang-current,
+        #lang-toggle .lang-target {
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; height: 100%;
+            backface-visibility: hidden;
+        }
+        #lang-toggle .lang-target {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            transform: rotateY(180deg);
+        }
+        #lang-toggle:hover .lang-inner { transform: rotateY(180deg); }
+
+        .theme-dot { width: 30px; height: 18px; border-radius: 15px; cursor: pointer; border: none; background-image: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%); box-shadow: 0 1px 3px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.4); transition: transform 0.2s ease, box-shadow 0.3s ease; -webkit-backface-visibility: hidden; }
+        .theme-dot:hover { transform: scale(1.1); }
         .theme-dot.active { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 15px; }
         .dot-lavender { background-color: #8B5CF6; } .dot-ocean { background-color: #0EA5E9; } .dot-forest { background-color: #10B981; } .dot-sepia { background-color: #D97706; } .dot-slate { background-color: #6366F1; } .dot-dark { background-color: #1E293B; }
+        .dot-lavender:hover { box-shadow: 0 0 5px 1px rgba(139,92,246,0.3), inset 0 1px 1px rgba(255,255,255,0.4); }
+        .dot-ocean:hover   { box-shadow: 0 0 5px 1px rgba(14,165,233,0.3), inset 0 1px 1px rgba(255,255,255,0.4); }
+        .dot-forest:hover  { box-shadow: 0 0 5px 1px rgba(16,185,129,0.3), inset 0 1px 1px rgba(255,255,255,0.4); }
+        .dot-sepia:hover   { box-shadow: 0 0 5px 1px rgba(217,119,6,0.3), inset 0 1px 1px rgba(255,255,255,0.4); }
+        .dot-slate:hover   { box-shadow: 0 0 5px 1px rgba(99,102,241,0.3), inset 0 1px 1px rgba(255,255,255,0.4); }
+        .dot-dark:hover    { box-shadow: 0 0 5px 1px rgba(30,41,59,0.3), inset 0 1px 1px rgba(255,255,255,0.4); }
         .dot-custom { background: conic-gradient(from 180deg, #ff6b35, #ffd23f, #3dd68c, #35d0ff, #a855f7, #ff5eae, #ff6b35); position: relative; border-color: rgba(255,255,255,0.3); box-shadow: inset 0 1px 2px rgba(255,255,255,0.5), 0 1px 4px rgba(0,0,0,0.1); }
-        .dot-custom input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0; }
+        .dot-custom:hover { box-shadow: 0 0 3px 1px rgba(255,107,53,0.4), 0 0 3px 1px rgba(53,208,255,0.4), 0 0 3px 1px rgba(168,85,247,0.4), inset 0 1px 2px rgba(255,255,255,0.5); }
+        .dot-custom input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0; z-index: 1; }
 
         .slider { width: 100%; height: 4px; background: #E2E8F0; border-radius: 2px; appearance: none; outline: none; }
-        .slider::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; background: var(--primary); border: 1px solid rgba(0,0,0,0.06); border-radius: 50%; background-image: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%); box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 4px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }
-        .slider::-webkit-slider-thumb:hover { transform: scale(1.2); box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.15), 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
+        .slider::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; background: var(--primary); border: none; border-radius: 50%; background-image: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%); box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 4px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; -webkit-backface-visibility: hidden; }
+        .slider::-webkit-slider-thumb:hover { transform: scale(1.08); box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 4px rgba(0,0,0,0.12), 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent); }
         .slider:active::-webkit-slider-thumb { transform: scale(1.1); box-shadow: inset 0 1px 1px rgba(255,255,255,0.3), 0 1px 3px rgba(0,0,0,0.1), 0 0 0 5px color-mix(in srgb, var(--primary) 25%, transparent); }
-        .segment-ctrl { display: flex; background: color-mix(in srgb, var(--outline) 50%, var(--surface)); padding: 4px; border-radius: 10px; }
-        .segment-btn { flex: 1; background: none; border: none; padding: 6px; font-size: 0.75rem; font-weight: 700; color: var(--secondary); cursor: pointer; border-radius: 6px; }
-        .segment-btn.active { background: var(--surface); color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .segment-ctrl { display: flex; background: color-mix(in srgb, var(--outline) 50%, var(--surface)); padding: 4px; border-radius: 10px; position: relative; }
+        .segment-slider {
+            position: absolute; top: 4px; left: 4px; height: calc(100% - 8px);
+            background: var(--surface); border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none; z-index: 0;
+        }
+        .segment-btn { flex: 1; background: none; border: none; padding: 6px; font-size: 0.75rem; font-weight: 700; color: var(--secondary); cursor: pointer; border-radius: 6px; position: relative; z-index: 1; transition: color 0.3s ease; min-width: 60px; }
+        .segment-btn.active { color: var(--primary); }
 
         .resizer { width: 12px; height: 100%; cursor: col-resize; z-index: 1000; flex-shrink: 0; position: relative; margin: 0 -6px; }
-        .resizer::after { content: ''; position: absolute; left: 5px; top: 0; width: 2px; height: 100%; background: var(--primary); opacity: 0; }
+        .resizer::after { content: ''; position: absolute; left: 5px; top: 0; width: 2px; height: 100%; background: var(--primary); opacity: 0; transition: opacity 0.2s, width 0.2s; }
         .resizer:hover::after { opacity: 0.2; }
+        .resizer.snap-zone::after { opacity: 0.5; width: 3px; left: 4.5px; }
         
         .loading-shimmer { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; height: 1.2em; margin-bottom: 12px; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
         /* Setting toggle row with delayed tooltip */
-        .setting-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; position: relative; }
-        .setting-toggle::after { content: attr(data-tip); position: absolute; top: 100%; left: 0; margin-top: 6px; font-size: 0.68rem; color: var(--secondary); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
-        .setting-toggle:hover::after { animation: tipReveal 0.3s ease 1.5s forwards; }
+        .setting-toggle { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; cursor: pointer; position: relative; min-height: 24px; }
+        .setting-tip { width: 100%; font-size: 0.68rem; color: var(--secondary); margin-top: 2px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; line-height: 1.4; position: absolute; top: 100%; left: 0; }
+        .setting-toggle:hover .setting-tip { animation: tipReveal 0.3s ease 1.5s forwards; }
         @keyframes tipReveal { to { opacity: 0.7; } }
 
         /* AI Panel Content */
-        .ai-content { flex: 1; overflow-y: auto; padding: 16px 20px; }
+        #ai-chat-input::placeholder { color: var(--secondary); opacity: 0.4; font-size: 0.8rem; }
+        .ai-content { flex: 1; overflow-y: auto; padding: 16px 24px; }
         .analysis-card { padding: 16px 0; border-bottom: 1px solid var(--outline); margin-bottom: 4px; }
         .analysis-card:last-child { border-bottom: none; }
         .analysis-label { font-size: 0.6rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: var(--secondary); margin-bottom: 8px; }
@@ -190,8 +535,9 @@
             transition: background 0.4s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .toggle-track::after {
-            content: ''; position: absolute; top: 2px; left: 2px;
-            width: 20px; height: 20px; background: white; border-radius: 50%;
+            content: ''; position: absolute; top: 50%; left: 2.5px;
+            width: 19px; height: 19px; background: white; border-radius: 50%;
+            transform: translateY(-50%);
             box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0.5px rgba(0,0,0,0.08);
             transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), width 0.2s cubic-bezier(0.22, 1, 0.36, 1);
         }
@@ -200,30 +546,85 @@
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 8px color-mix(in srgb, var(--primary) 30%, transparent);
         }
         .toggle-switch input:checked + .toggle-track::after {
-            transform: translateX(20px);
+            transform: translateY(-50%) translateX(20px);
         }
-        .toggle-track:active::after { width: 24px; }
-        .toggle-switch input:checked + .toggle-track:active::after { transform: translateX(16px); width: 24px; }
+        .toggle-track:active::after { width: 23px; }
+        .toggle-switch input:checked + .toggle-track:active::after { transform: translateY(-50%) translateX(16px); width: 23px; }
         [data-theme="dark"] .toggle-track { background: rgba(120, 120, 128, 0.32); border-color: rgba(255, 255, 255, 0.08); }
         [data-theme="dark"] .toggle-track::after { background: #E0E0E0; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 
         /* Settings Panel */
         .setting-section { margin-bottom: 28px; }
-        .setting-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--secondary); margin-bottom: 10px; }
+        .setting-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--secondary); margin-bottom: 10px; line-height: 1.2; min-height: 1em; }
         .theme-flex { display: flex; justify-content: space-between; }
 
         /* Loading animation */
         .loading-dots { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
         @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+        .stop-btn {
+            display: inline-block; margin-left: 10px; padding: 2px 10px;
+            font-size: 0.7rem; border: 1px solid var(--secondary); border-radius: 10px;
+            background: none; color: var(--secondary); cursor: pointer;
+            opacity: 0.6; transition: opacity 0.2s, border-color 0.2s, color 0.2s;
+            vertical-align: middle;
+        }
+        .stop-btn:hover { opacity: 1; color: var(--primary); border-color: var(--primary); }
 
         /* Chat bubbles */
-        .chat-bubble { margin-bottom: 16px; padding: 14px 16px; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; }
+        .chat-bubble { margin-bottom: 16px; padding: 14px 16px; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; position: relative; }
+        .chat-bubble .msg-del {
+            position: absolute; top: 6px; right: 6px;
+            width: 18px; height: 18px; border-radius: 50%; border: none;
+            background: rgba(0,0,0,0.08); color: var(--secondary);
+            font-size: 12px; line-height: 18px; text-align: center;
+            cursor: pointer; opacity: 0; transition: opacity 0.2s; padding: 0;
+        }
+        .chat-bubble:hover .msg-del { opacity: 0.5; }
+        .chat-bubble .msg-del:hover { opacity: 1; background: rgba(0,0,0,0.15); }
+        .chat-bubble.user .msg-del { background: rgba(255,255,255,0.2); color: white; }
+        .chat-bubble.user .msg-del:hover { background: rgba(255,255,255,0.35); }
         .chat-bubble.user { background: var(--primary); color: white; margin-left: 24px; border-bottom-right-radius: 4px; }
         .chat-bubble.ai { background: var(--outline); color: var(--on-surface); margin-right: 24px; border-bottom-left-radius: 4px; }
+        .chat-bubble.ai h3, .chat-bubble.ai h4 { margin: 12px 0 6px; font-size: 0.92rem; font-weight: 700; }
+        .chat-bubble.ai h3:first-child, .chat-bubble.ai h4:first-child { margin-top: 0; }
+        .chat-bubble.ai p { margin: 0 0 8px; }
+        .chat-bubble.ai p:last-child { margin-bottom: 0; }
+        .chat-bubble.ai ul, .chat-bubble.ai ol { margin: 6px 0; padding-left: 1.4em; }
+        .chat-bubble.ai li { margin-bottom: 4px; }
+        .chat-bubble.ai code { font-size: 0.85em; background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
+        .chat-bubble.ai pre { margin: 8px 0; padding: 10px 12px; background: rgba(0,0,0,0.06); border-radius: 8px; overflow-x: auto; }
+        .chat-bubble.ai pre code { background: none; padding: 0; }
+        .chat-bubble.ai strong { font-weight: 700; }
         .chat-bubble-label { font-size: 0.6rem; font-weight: 900; margin-bottom: 6px; opacity: 0.6; letter-spacing: 0.1em; }
 
+        /* Session List */
+        .session-list {
+            border-bottom: 1px solid var(--outline); overflow-y: auto; max-height: 55vh;
+            background: var(--surface);
+        }
+        .session-item {
+            padding: 10px 24px; cursor: pointer; position: relative;
+            border-bottom: 1px solid color-mix(in srgb, var(--outline) 50%, transparent);
+            transition: background 0.15s;
+        }
+        .session-item:last-child { border-bottom: none; }
+        .session-item:hover { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+        .session-item.active { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+        .session-title { font-size: 0.82rem; font-weight: 600; color: var(--on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 24px; }
+        .session-meta { font-size: 0.65rem; color: var(--secondary); margin-top: 3px; display: flex; gap: 10px; }
+        .session-del {
+            position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+            width: 20px; height: 20px; border-radius: 50%; border: none;
+            background: transparent; color: var(--secondary); font-size: 13px;
+            cursor: pointer; opacity: 0; transition: opacity 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .session-item:hover .session-del { opacity: 0.5; }
+        .session-del:hover { opacity: 1 !important; background: rgba(0,0,0,0.08); }
+        .session-empty { padding: 24px; text-align: center; font-size: 0.8rem; color: var(--secondary); opacity: 0.6; }
+
         /* Quick Action Chips */
-        .quick-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 20px; border-top: 1px solid var(--outline); }
+        .quick-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 24px; border-top: 1px solid var(--outline); }
         .quick-btn { background: none; border: 1.5px solid var(--outline); padding: 5px 12px; border-radius: 18px; font-size: 0.75rem; font-weight: 600; color: var(--secondary); cursor: pointer; transition: 0.2s; white-space: nowrap; }
         .quick-btn:hover { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 4%, transparent); }
 
@@ -231,6 +632,55 @@
         .ai-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--secondary); gap: 8px; opacity: 0.5; }
         .ai-empty-icon { font-size: 2.5rem; }
         .ai-empty-text { font-size: 0.8rem; line-height: 1.5; }
+
+        /* Marginia story */
+        .marginia-story { padding: 24px 0; opacity: 0; animation: storyFadeIn 0.8s ease forwards; }
+        .marginia-story .story-title { font-size: 1.1rem; font-weight: 700; color: var(--on-surface); margin-bottom: 16px; font-family: Georgia, 'Noto Serif SC', serif; }
+        .marginia-story .story-epigraph {
+            font-size: 0.85rem; font-style: italic; color: var(--secondary); margin-bottom: 18px;
+            font-family: Georgia, 'Noto Serif SC', serif; letter-spacing: 0.15em; text-align: center;
+        }
+        .marginia-story .story-epigraph .epigraph-src {
+            display: block; font-size: 0.7rem; font-style: normal; letter-spacing: 0.05em;
+            margin-top: 4px; opacity: 0.6;
+        }
+        .marginia-story .story-body { font-size: 0.82rem; line-height: 1.9; color: var(--secondary); font-family: Georgia, 'Noto Serif SC', serif; }
+        .marginia-story .story-body p { margin: 0 0 12px; }
+        .marginia-story .story-body em { color: var(--primary); font-style: normal; font-weight: 600; }
+        .marginia-story .story-close {
+            margin-top: 20px; font-size: 0.85rem; color: var(--secondary); opacity: 0.3;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 14px;
+            transition: opacity 0.4s ease, color 0.4s ease;
+        }
+        .marginia-story .story-close::before,
+        .marginia-story .story-close::after {
+            content: ''; width: 32px; height: 0.5px; background: currentColor;
+            transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .marginia-story .story-close:hover { opacity: 0.6; color: var(--primary); }
+        .marginia-story .story-close:hover::before,
+        .marginia-story .story-close:hover::after { width: 48px; }
+        .marginia-story .story-signature {
+            margin-top: 24px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 14px;
+            font-family: 'Dancing Script', 'Segoe Script', 'Apple Chancery', cursive;
+            font-size: 1.15rem; font-style: italic; color: var(--secondary); opacity: 0.4;
+            transition: opacity 0.4s ease;
+            letter-spacing: 0.02em;
+        }
+        .marginia-story .story-signature::before,
+        .marginia-story .story-signature::after {
+            content: ''; width: 32px; height: 0.5px; background: currentColor;
+            transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .marginia-story .story-signature:hover { opacity: 0.65; }
+        .marginia-story .story-signature:hover::before,
+        .marginia-story .story-signature:hover::after { width: 48px; }
+
+        .marginia-story .story-seal {
+            margin-top: 24px; display: flex; justify-content: center; cursor: pointer;
+        }
+        @keyframes storyFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
         /* --- Reading Progress Bar --- */
         #reading-progress-bar { position: sticky; top: 0; width: 100%; height: 2px; z-index: 100; pointer-events: none; flex-shrink: 0; }
@@ -352,6 +802,34 @@
             padding: 2px 6px; border-radius: 4px;
         }
         #lookup-popup .lookup-close:hover { opacity: 1; background: rgba(0,0,0,0.05); }
+        /* Chapter Jump Popup */
+        #chapter-jump-popup {
+            position: fixed; display: none; z-index: 2800;
+            background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
+            border: 1px solid var(--outline); border-radius: 14px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.14);
+            width: 300px; max-height: 400px; overflow: hidden;
+            animation: toolbarIn 0.15s ease-out;
+        }
+        #chapter-jump-popup.visible { display: flex; flex-direction: column; }
+        #chapter-jump-list {
+            overflow-y: auto; padding: 6px;
+            scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.1) transparent;
+        }
+        #chapter-jump-list::-webkit-scrollbar { width: 3px; }
+        #chapter-jump-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+        .cj-item {
+            padding: 9px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em; line-height: 1.4;
+            color: var(--primary);
+            display: flex; align-items: baseline; gap: 10px;
+            transition: all 0.25s ease;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cj-item:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+        .cj-item.active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+        .cj-num { font-size: 0.68rem; opacity: 0.5; min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+        .cj-title { overflow: hidden; text-overflow: ellipsis; }
     </style>
 </head>
 <body class="themed">
@@ -383,7 +861,7 @@
                 <div id="readable-content" class="book-content">{{ chapter_content | safe }}</div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 100px; padding-top: 40px; border-top: 1px solid var(--outline);">
                     {% if prev_idx is not none %}<a href="/read/{{ book_id }}/{{ prev_idx }}" onclick="sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop)" class="nav-link">PREVIOUS</a>{% endif %}
-                    <span style="font-size: 0.8rem; opacity: 0.4; font-weight: 800; font-variant-numeric: tabular-nums;">{{ chapter_index + 1 }} / {{ book.spine|length }}</span>
+                    <span id="chapter-indicator" class="nav-link" style="font-variant-numeric: tabular-nums; cursor: pointer;" onclick="ChapterJump.show()">{{ chapter_index + 1 }} / {{ book.spine|length }}</span>
                     {% if next_idx is not none %}<a href="/read/{{ book_id }}/{{ next_idx }}" onclick="sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop)" class="nav-link">NEXT</a>{% endif %}
                 </div>
             </div>
@@ -395,73 +873,121 @@
 
     <div id="panels-container">
         <div id="ai-panel" style="display: flex; flex-direction: column; height: 100%;">
-            <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--outline);">
-                <span style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; color: var(--secondary);">AI 助手</span>
-                <button onclick="AI.clear()" class="icon-btn" title="清空对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+            <div style="padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--outline);">
+                <div style="display: flex; align-items: baseline; gap: 6px; cursor: pointer;" onclick="AI.showStory()">
+                    <span id="panel-title" style="font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; color: var(--secondary);" data-i18n="Marginia">Marginia</span>
+                    <span id="panel-subtitle" style="font-size: 0.65rem; color: var(--on-surface); opacity: 0.4; margin-left: 4px;" data-i18n="your AI reading companion">your AI reading companion</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px;">
+                    <button onclick="AI.showSessionList()" class="icon-btn" title="Chat history" data-i18n-title="Chat history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+                    <button onclick="AI.newSession()" class="icon-btn" title="New chat" data-i18n-title="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                    <button onclick="AI.clear()" class="icon-btn" title="Clear chat" data-i18n-title="Clear chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                </div>
             </div>
             <div class="ai-content" id="ai-content">
                 <div id="ai-empty-state" class="ai-empty">
                     <div class="ai-empty-icon">&#x2728;</div>
-                    <div class="ai-empty-text">点击下方快捷操作<br>或直接输入问题</div>
+                    <div class="ai-empty-text" data-i18n-tip="Try a quick action below|or type your own question">Try a quick action below<br>or type your own question</div>
                 </div>
                 <div id="ai-chat-history"></div>
             </div>
             <div class="quick-actions">
-                <button class="quick-btn" onclick="AI.quickAction('summarize')">总结本章</button>
-                <button class="quick-btn" onclick="AI.quickAction('concepts')">知识详解</button>
-                <button class="quick-btn" onclick="AI.quickAction('difficulties')">难点解析</button>
-                <button class="quick-btn" onclick="AI.quickAction('reading')">拓展阅读</button>
-                <button class="quick-btn" onclick="AI.quickAction('insight')">深度洞察</button>
-                <button class="quick-btn" onclick="AI.quickAction('writing')">写作手法</button>
-                <button class="quick-btn" onclick="Highlights.showReview()">笔记本</button>
+                <button class="quick-btn" data-i18n="Summarize" onclick="AI.quickAction('summarize')">Summarize</button>
+                <button class="quick-btn" data-i18n="Key Concepts" onclick="AI.quickAction('concepts')">Key Concepts</button>
+                <button class="quick-btn" data-i18n="Explain Difficult Parts" onclick="AI.quickAction('difficulties')">Explain Difficult Parts</button>
+                <button class="quick-btn" data-i18n="Characters" onclick="AI.quickAction('characters')">Characters</button>
+                <button class="quick-btn" data-i18n="Further Reading" onclick="AI.quickAction('reading')">Further Reading</button>
             </div>
-            <div style="padding: 12px 20px; border-top: 1px solid var(--outline); background: var(--surface);"><input type="text" id="ai-chat-input" style="width: 100%; border: 1.5px solid var(--outline); border-radius: 12px; padding: 12px 16px; outline: none; font-size: 0.9rem; background: var(--surface); color: var(--on-surface);" placeholder="对当前章节提问..."></div>
+            <div style="padding: 12px 24px; border-top: 1px solid var(--outline); background: var(--surface);"><textarea id="ai-chat-input" rows="5" style="width: 100%; border: 1.5px solid var(--outline); border-radius: 12px; padding: 10px 16px; outline: none; font-size: 0.9rem; background: var(--surface); color: var(--on-surface); resize: none; font-family: inherit; line-height: 1.5;" placeholder="Ask anything about this chapter…&#10;&quot;What does the author mean by…&quot;&#10;&quot;Explain the concept of…&quot;&#10;&quot;Translate this paragraph&quot;&#10;Enter to send · Shift+Enter for new line" data-i18n-placeholder="Ask anything about this chapter…\n&quot;What does the author mean by…&quot;\n&quot;Explain the concept of…&quot;\n&quot;Translate this paragraph&quot;\nEnter to send · Shift+Enter for new line"></textarea></div>
             <div id="audio-console">
                 <div class="progress-line"><div id="audio-progress" class="progress-fill"></div></div>
                 <div class="player-actions">
-                    <select id="voice-select" onchange="Audio.switchVoice(this.value)" style="border:1px solid var(--outline); border-radius:8px; padding:4px 6px; font-size:0.7rem; color:var(--secondary); background:var(--surface); outline:none; cursor:pointer; max-width:120px;">
-                        <option value="zh-CN-XiaoxiaoNeural">晓晓 (女)</option>
-                        <option value="zh-CN-YunxiNeural">云希 (男)</option>
-                        <option value="zh-CN-XiaoyiNeural">晓伊 (女)</option>
-                        <option value="zh-CN-YunjianNeural">云健 (男)</option>
-                        <option value="zh-CN-liaoning-XiaobeiNeural">小北 (东北话)</option>
-                        <option value="zh-CN-shaanxi-XiaoniNeural">小妮 (陕西话)</option>
-                    </select>
-                    <button id="play-main-btn" class="icon-btn play-main" onclick="Audio.toggleAll()"><svg viewBox="0 0 24 24" fill="white" stroke="white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
-                    <button class="icon-btn" onclick="Audio.stop()" title="停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+                    <button id="speed-label" class="player-label" onclick="Audio.showSpeedMenu(this)" title="Playback speed" data-i18n-title="Playback speed"><svg viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z" fill="none"/><path d="M12 12l3.5-5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg></button>
+                    <button id="play-main-btn" class="icon-btn play-main" onclick="Audio.toggleAll()"><svg viewBox="0 0 24 24" fill="white" stroke="white"><polygon points="7 3 21 12 7 21 7 3"></polygon></svg></button>
+                    <button id="voice-label" class="player-label" onclick="Audio.showVoiceMenu(this)" title="Voice" data-i18n-title="Voice"><svg viewBox="0 0 24 24"><line x1="6" y1="9" x2="6" y2="15"/><line x1="10" y1="5" x2="10" y2="19"/><line x1="14" y1="7" x2="14" y2="17"/><line x1="18" y1="10" x2="18" y2="14"/></svg></button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Voice & Speed Popups (fixed, outside panels) -->
+    <div id="voice-popup" class="audio-popup"><div class="audio-popup-list" id="voice-popup-list"></div></div>
+    <div id="speed-popup" class="audio-popup"><div class="speed-slider-wrap" id="speed-slider-wrap"></div></div>
+
     <!-- Satellites -->
-    <div id="toggle-left" class="toggle-btn" onclick="window.toggleLeft()"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></div>
+    <div class="toggle-group">
+        <div id="toggle-left" class="toggle-btn" onclick="window.toggleLeft()"><svg class="icon-hamburger" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg><svg class="icon-collapse" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><path d="M16 10l-3 2 3 2"/></svg></div>
+        <div id="toggle-search" class="toggle-btn toggle-sub" onclick="toggleSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <div id="toggle-notebook" class="toggle-btn toggle-sub" onclick="toggleNotebook()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="13" y2="11"/></svg></div>
+        <div id="toggle-settings" class="toggle-btn toggle-sub" onclick="toggleSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+    </div>
     <div id="toggle-right" class="toggle-btn" onclick="window.toggleRight()"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
-    <div id="toggle-settings" class="toggle-btn" onclick="toggleSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+
+    <!-- Search Panel -->
+    <div id="search-panel">
+        <div class="sp-scope-tabs">
+            <button class="sp-scope-tab" data-scope="page" data-i18n="Page" onclick="ContentSearch.setScope('page')">Page</button>
+            <button class="sp-scope-tab active" data-scope="chapter" data-i18n="Chapter" onclick="ContentSearch.setScope('chapter')">Chapter</button>
+            <button class="sp-scope-tab" data-scope="book" data-i18n="Full Book" onclick="ContentSearch.setScope('book')">Full Book</button>
+            <div class="sp-scope-slider" id="sp-scope-slider"></div>
+        </div>
+        <div class="sp-input-wrap">
+            <input type="text" class="sp-input" id="sp-input" data-i18n-placeholder="Search in this chapter..." placeholder="Search in this chapter..." onkeydown="if(event.key==='Enter')ContentSearch.search()">
+        </div>
+        <div class="sp-info" id="sp-info"></div>
+        <div class="sp-results" id="sp-results"></div>
+    </div>
 
     <!-- Settings Card -->
     <div id="settings-panel">
-        <div class="setting-section"><div class="setting-label">Theme</div><div id="theme-grid" class="theme-flex"></div></div>
-        <div class="setting-section"><div class="setting-label">Font Size</div><input type="range" class="slider" min="0.8" max="2.2" step="0.05" value="1.25" oninput="UX.updateTypography('font-size', this.value + 'rem')"></div>
-        <div class="setting-section"><div class="setting-label">Line Spacing</div><div class="segment-ctrl"><button class="segment-btn" onclick="UX.updateTypography('line-height', 1.5, this)">Tight</button><button class="segment-btn active" onclick="UX.updateTypography('line-height', 1.85, this)">Normal</button><button class="segment-btn" onclick="UX.updateTypography('line-height', 2.3, this)">Relaxed</button></div></div>
-        <div class="setting-section"><div class="setting-label">Reading Width</div><input type="range" class="slider" min="500" max="1100" step="20" value="760" oninput="UX.updateTypography('content-max-width', this.value + 'px')"></div>
-        <div class="setting-section"><label class="setting-toggle" data-tip="Read aloud by clicking ▶ beside a paragraph"><div class="setting-label" style="margin-bottom:0">TTS</div><div class="toggle-switch"><input type="checkbox" id="toggle-tts" onchange="UX.toggleTTS(this.checked)"><span class="toggle-track"></span></div></label></div>
-        <div class="setting-section"><label class="setting-toggle" data-tip="Translate by clicking 译 beside a paragraph"><div class="setting-label" style="margin-bottom:0">Inline Translation</div><div class="toggle-switch"><input type="checkbox" id="toggle-inline-translate" onchange="UX.toggleInlineTranslate(this.checked)"><span class="toggle-track"></span></div></label></div>
+        <div id="lang-toggle" onclick="UX.toggleLanguage()"><span class="lang-inner"><span class="lang-current">EN</span><span class="lang-target">中</span></span></div>
+        <div class="setting-section" style="margin-top: 45px"><div class="setting-label" data-i18n="Theme">Theme</div><div id="theme-grid" class="theme-flex"></div></div>
+        <div class="setting-section"><div class="setting-label" data-i18n="Font Size">Font Size</div><input type="range" class="slider" min="0.8" max="2.2" step="0.05" value="1.25" oninput="UX.updateTypography('font-size', this.value + 'rem')"></div>
+        <div class="setting-section"><div class="setting-label" data-i18n="Line Spacing">Line Spacing</div><div class="segment-ctrl" id="segment-ctrl"><div class="segment-slider" id="segment-slider"></div><button class="segment-btn" data-i18n="Tight" onclick="UX.updateTypography('line-height', 1.5, this)">Tight</button><button class="segment-btn active" data-i18n="Normal" onclick="UX.updateTypography('line-height', 1.85, this)">Normal</button><button class="segment-btn" data-i18n="Relaxed" onclick="UX.updateTypography('line-height', 2.3, this)">Relaxed</button></div></div>
+        <div class="setting-section"><div class="setting-label" data-i18n="Reading Width">Reading Width</div><input type="range" class="slider" min="500" max="1100" step="20" value="760" oninput="UX.updateTypography('content-max-width', this.value + 'px')"></div>
+        <div class="setting-section" style="margin-bottom:12px"><label class="setting-toggle"><div class="setting-label" style="margin-bottom:0" data-i18n="Read Aloud">Read Aloud</div><div class="toggle-switch"><input type="checkbox" id="toggle-tts" onchange="UX.toggleTTS(this.checked)"><span class="toggle-track"></span></div><span class="setting-tip" data-i18n-tip="Enable text-to-speech and show controls|beside each paragraph">Enable text-to-speech and show controls<br>beside each paragraph</span></label></div>
+        <div class="setting-section"><label class="setting-toggle"><div class="setting-label" style="margin-bottom:0" data-i18n="Inline Translation">Inline Translation</div><div class="toggle-switch"><input type="checkbox" id="toggle-inline-translate" onchange="UX.toggleInlineTranslate(this.checked)"><span class="toggle-track"></span></div><span class="setting-tip" data-i18n-tip="Enable inline translation and show controls|beside each paragraph">Enable inline translation and show controls<br>beside each paragraph</span></label></div>
+    </div>
+
+    <!-- Notebook Panel -->
+    <div id="notebook-panel">
+        <div class="nb-header">
+            <span data-i18n="Highlights & Notes">Highlights & Notes</span>
+            <span class="nb-count" id="nb-count"></span>
+        </div>
+        <div class="nb-toolbar" id="nb-toolbar" style="display:none">
+            <div class="nb-search-wrap">
+                <input type="text" class="nb-search" id="nb-search" data-i18n-placeholder="Search highlights..." placeholder="Search highlights..." oninput="Highlights._filterNotebook()">
+            </div>
+            <div class="nb-filters">
+                <div class="nb-color-filters">
+                    <div class="nb-color-dot" style="background:#FACC15" data-color="yellow" onclick="Highlights._toggleColorFilter('yellow')"></div>
+                    <div class="nb-color-dot" style="background:#4ADE80" data-color="green" onclick="Highlights._toggleColorFilter('green')"></div>
+                    <div class="nb-color-dot" style="background:#60A5FA" data-color="blue" onclick="Highlights._toggleColorFilter('blue')"></div>
+                    <div class="nb-color-dot" style="background:#F472B6" data-color="pink" onclick="Highlights._toggleColorFilter('pink')"></div>
+                    <div class="nb-color-dot" style="background:#9CA3AF" data-color="gray" onclick="Highlights._toggleColorFilter('gray')"></div>
+                </div>
+                <button class="nb-sort-btn" id="nb-sort-btn" onclick="Highlights._toggleTimeSort()" data-i18n-title="Sort by time" title="Sort by time">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/></svg>
+                </button>
+            </div>
+        </div>
+        <div id="nb-content"></div>
     </div>
 
     <!-- Note Tooltip -->
     <div id="note-tooltip" class="note-tooltip">
-        <textarea id="note-text" placeholder="添加笔记..."></textarea>
+        <textarea id="note-text" placeholder="Add a note..." data-i18n-placeholder="Add a note..."></textarea>
         <div class="note-actions">
-            <button class="note-delete-btn" onclick="Highlights.deleteHighlight()">删除高亮</button>
-            <button class="note-save-btn" onclick="Highlights.saveNote()">保存</button>
+            <button class="note-delete-btn" data-i18n="Delete" onclick="Highlights.deleteHighlight()">Delete</button>
+            <button class="note-save-btn" data-i18n="Save" onclick="Highlights.saveNote()">Save</button>
         </div>
     </div>
 
     <!-- Selection Toolbar -->
     <div id="selection-toolbar">
-        <button class="sel-btn" onclick="Sel.lookup()">查</button>
-        <button class="sel-btn" onclick="Sel.quickTranslate()">译</button>
+        <button class="sel-btn" data-i18n="Look up" onclick="Sel.lookup()">Look up</button>
+        <button class="sel-btn" data-i18n="Translate" onclick="Sel.quickTranslate()">Translate</button>
         <div class="sel-colors">
             <div class="sel-color-dot" style="background:#FACC15" onclick="Sel.highlight('yellow')"></div>
             <div class="sel-color-dot" style="background:#4ADE80" onclick="Sel.highlight('green')"></div>
@@ -469,8 +995,8 @@
             <div class="sel-color-dot" style="background:#F472B6" onclick="Sel.highlight('pink')"></div>
             <div class="sel-color-dot" style="background:#9CA3AF" onclick="Sel.highlight('gray')"></div>
         </div>
-        <button class="sel-btn" onclick="Sel.addNote()">笔记</button>
-        <button class="sel-btn" onclick="Sel.askAI()">问AI</button>
+        <button class="sel-btn" data-i18n="Note" onclick="Sel.addNote()">Note</button>
+        <button class="sel-btn" data-i18n="Ask AI" onclick="Sel.askAI()">Ask AI</button>
     </div>
 
     <!-- Lookup Popup (inline dictionary near selection) -->
@@ -479,9 +1005,12 @@
         <div id="lookup-content"></div>
     </div>
 
+    <!-- Chapter Jump Popup -->
+    <div id="chapter-jump-popup"><div id="chapter-jump-list"></div></div>
+
     <script>
         const root = document.documentElement;
-        const state = { bookId: "{{ book_id }}", chapterIndex: {{ chapter_index }}, totalChapters: {{ book.spine|length }}, chapterTitle: "", theme: localStorage.getItem('reader_theme') || '', voice: 'zh-CN-XiaoxiaoNeural' };
+        const state = { bookId: "{{ book_id }}", chapterIndex: {{ chapter_index }}, totalChapters: {{ book.spine|length }}, chapterTitle: "", theme: localStorage.getItem('reader_theme') || '', voice: '{{ "zh-CN-XiaoxiaoNeural" if book.metadata.language and book.metadata.language.startswith("zh") else "en-US-AvaNeural" if book.metadata.language and book.metadata.language.startswith("en") else "zh-CN-XiaoxiaoNeural" }}', chatSessions: [], activeSessionId: 0, chatMessages: [], _msgId: 0, _sessionId: 0 };
 
         // Build spine index → TOC title mapping (flatten nested TOC)
         (function() {
@@ -500,13 +1029,150 @@
                 if (idxTitle[i]) lastTitle = idxTitle[i];
                 else if (lastTitle) idxTitle[i] = lastTitle;
             }
-            state.chapterTitle = idxTitle[state.chapterIndex] || `第 ${state.chapterIndex + 1} 章`;
+            state.chapterTitle = idxTitle[state.chapterIndex] || `Chapter ${state.chapterIndex + 1}`;
+            state.chapterTitles = idxTitle;
         })();
         const cache = new Map();
+
+        const _i18n = {
+            // Settings panel
+            'Theme': '主题', 'Font Size': '字号', 'Line Spacing': '行距',
+            'Tight': '紧凑', 'Normal': '标准', 'Relaxed': '宽松',
+            'Reading Width': '阅读宽度', 'Read Aloud': '朗读', 'Inline Translation': '段落翻译',
+            // Setting tips
+            'Enable text-to-speech and show controls': '开启语音朗读并在段落旁显示控件',
+            'beside each paragraph': '点击即可收听',
+            'Enable inline translation and show controls': '开启段落翻译并在段落旁显示控件',
+            // Quick actions
+            'Summarize': '总结本章', 'Key Concepts': '知识详解', 'Explain Difficult Parts': '难点解析',
+            'Further Reading': '拓展阅读', 'Characters': '人物梳理',
+            'Deep Insight': '深度洞察', 'Writing Style': '写作手法',
+            'Notebook': '读书笔记',
+            // Selection toolbar
+            'Look up': '查', 'Translate': '译', 'Note': '笔记', 'Ask AI': '问AI',
+            // Note tooltip
+            'Add a note...': '添加笔记...', 'Delete': '删除', 'Save': '保存',
+            // Audio
+            'Playback speed': '播放速度', 'Voice': '语音角色',
+            // Voice groups
+            'Mandarin': '普通话',
+            'Dialect': '方言', 'Cantonese': '粤语', 'Taiwanese': '台湾',
+            'English · US': '英语 · 美音', 'English · UK': '英语 · 英音',
+            // Voice names
+            'Xiaoxiao · F': '晓晓 · 女', 'Xiaoyi · F': '晓伊 · 女',
+            'Yunxi · M': '云希 · 男', 'Yunjian · M': '云健 · 男',
+            'Yunyang · M': '云扬 · 男', 'Yunxia · M': '云夏 · 男',
+            'Xiaobei · Dongbei': '小北 · 东北',
+            'Xiaoni · Shaanxi': '小妮 · 陕西', 'HiuGaai · F': '曉佳 · 女',
+            'WanLung · M': '雲龍 · 男', 'HsiaoChen · F': '曉臻 · 女', 'YunJhe · M': '雲哲 · 男',
+            // English voice names (keep English name, translate gender)
+            'Ava · F': 'Ava · 女', 'Andrew · M': 'Andrew · 男', 'Emma · F': 'Emma · 女', 'Brian · M': 'Brian · 男',
+            'Sonia · F': 'Sonia · 女', 'Ryan · M': 'Ryan · 男', 'Libby · F': 'Libby · 女', 'Thomas · M': 'Thomas · 男',
+            // AI labels & status
+            'Difficult Parts': '难点解析',
+            'Analyzing...': '分析中...', 'Thinking...': '思考中...', 'Translating...': '翻译中...',
+            'Analysis service temporarily unavailable': '分析服务暂时不可用',
+            'Translation service temporarily unavailable': '翻译服务暂时不可用',
+            'Translating, please wait...': '正在翻译，请稍候...',
+            'Translation': '翻译', 'Translation failed': '翻译失败',
+            // Analysis cards
+            'Summary': '叙事总结', 'Key Points': '核心冲突',
+            // Highlights
+            'Highlights & Notes': '读书笔记', 'No highlights yet': '暂无笔记', 'current': '当前章',
+            'Paragraph': '段落', 'Search highlights...': '搜索文字、笔记内容...',
+            'Sort by time': '按时间排序', 'No matching highlights': '没有匹配的笔记',
+            'Edit note': '编辑笔记', 'Confirm delete?': '确认删除？', 'Cancel': '取消',
+            // Lookup
+            'Looking up...': '查询中...', 'No results': '无结果', 'Lookup failed': '查询失败',
+            'No encyclopedia entry found': '未找到百科条目',
+            'Ask AI for deep translation': '问AI深度翻译', 'Ask AI to explain': '问AI详细解释',
+            // Empty state
+            'Try a quick action below': '试试下方的快捷操作',
+            'or type your own question': '或直接输入你的问题',
+            // Input placeholder
+            'Ask anything about this chapter…': '读到这里，有什么想聊的吗？',
+            '"What does the author mean by…"': '"这段话是什么意思？"',
+            '"Explain the concept of…"': '"帮我解释一下……的概念"',
+            '"Translate this paragraph"': '"翻译这个段落"',
+            'Enter to send · Shift+Enter for new line': 'Enter 发送 · Shift+Enter 换行',
+            // Misc
+            'Clear chat': '清空对话', 'Clear all chat history?': '确定要清空所有对话记录吗？',
+            'New chat': '新对话', 'Chat history': '历史记录', 'No chat history': '暂无历史记录',
+            'New Chat': '新对话', 'messages': '条消息', 'Delete this session?': '确定要删除这段对话吗？',
+            'Read aloud': '朗读', 'Pronounce': '发音', 'Stop': '停止', 'Stopped': '已停止',
+            // Search
+            'Search in this chapter...': '在本章中搜索...',
+            'Search in this page...': '在当前页中搜索...',
+            'Search in full book...': '在全书中搜索...',
+            'Page': '本页', 'Chapter': '本章', 'Full Book': '全书',
+            'Searching...': '搜索中...',
+            'results found': '个结果', 'No results found': '未找到结果',
+            'Marginia': '知白',
+            'your AI reading companion': '您的AI书伴',
+        };
+        function t(key) { return (state.language === 'zh' && _i18n[key]) ? _i18n[key] : key; }
+        function _md(s) {
+            if (!s) return s;
+            return s
+                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+                .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^# (.+)$/gm, '<h3>$1</h3>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>\n?)+/gs, '<ul>$&</ul>')
+                .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                .replace(/(?:<li>.*<\/li>\n?)+(?!<\/ul>)/gs, m => m.includes('<ul>') ? m : '<ol>' + m + '</ol>')
+                .replace(/\n{2,}/g, '</p><p>')
+                .replace(/^(?!<[hupol])(.+)/gm, '<p>$1</p>')
+                .replace(/<p><\/p>/g, '');
+        }
+
+        const ChatStore = {
+            _db: null,
+            init() {
+                return new Promise(resolve => {
+                    const req = indexedDB.open('reader3_chat', 1);
+                    req.onupgradeneeded = e => {
+                        e.target.result.createObjectStore('messages', { keyPath: 'bookId' });
+                    };
+                    req.onsuccess = e => { ChatStore._db = e.target.result; resolve(); };
+                    req.onerror = () => resolve();
+                });
+            },
+            save(bookId, messages) {
+                if (!this._db) return;
+                try {
+                    const tx = this._db.transaction('messages', 'readwrite');
+                    tx.objectStore('messages').put({ bookId, messages, updated: Date.now() });
+                } catch (e) { console.warn('ChatStore save error:', e); }
+            },
+            load(bookId) {
+                if (!this._db) return Promise.resolve([]);
+                return new Promise(resolve => {
+                    try {
+                        const tx = this._db.transaction('messages', 'readonly');
+                        const req = tx.objectStore('messages').get(bookId);
+                        req.onsuccess = () => resolve(req.result?.messages || []);
+                        req.onerror = () => resolve([]);
+                    } catch (e) { resolve([]); }
+                });
+            },
+            remove(bookId) {
+                if (!this._db) return;
+                try {
+                    const tx = this._db.transaction('messages', 'readwrite');
+                    tx.objectStore('messages').delete(bookId);
+                } catch (e) { console.warn('ChatStore remove error:', e); }
+            }
+        };
 
         const UX = {
             init() {
                 this.loadSettings(); this.setupThemes(); this.setupResizers(); this.setupParaActions();
+                this._initSegmentSlider();
             },
             loadSettings() {
                 ['font-size', 'line-height', 'content-max-width'].forEach(p => {
@@ -532,6 +1198,9 @@
                     else if (val >= 2.1) btns[2].classList.add('active');
                     else btns[1].classList.add('active');
                 }
+                // Language
+                state.language = localStorage.getItem('reader_language') || 'en';
+                this._applyLanguage();
             },
             setupThemes() {
                 const themes = ['', 'ocean', 'forest', 'sepia', 'slate', 'dark'];
@@ -573,48 +1242,259 @@
             },
             updateTypography(prop, val, btnEl) {
                 root.style.setProperty('--' + prop, val); localStorage.setItem('reader_' + prop, val);
-                if (btnEl) { btnEl.parentElement.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active')); btnEl.classList.add('active'); }
+                if (btnEl) {
+                    const ctrl = btnEl.parentElement;
+                    ctrl.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active'));
+                    btnEl.classList.add('active');
+                    this._moveSegmentSlider(ctrl, btnEl);
+                }
+            },
+            _moveSegmentSlider(ctrl, activeBtn) {
+                const slider = ctrl.querySelector('.segment-slider');
+                if (!slider) return;
+                const btns = Array.from(ctrl.querySelectorAll('.segment-btn'));
+                const idx = btns.indexOf(activeBtn);
+                slider.style.width = activeBtn.offsetWidth + 'px';
+                slider.style.transform = `translateX(${activeBtn.offsetLeft - 4}px)`;
+            },
+            _initSegmentSlider() {
+                const ctrl = document.getElementById('segment-ctrl');
+                const active = ctrl.querySelector('.segment-btn.active');
+                if (active) {
+                    const slider = document.getElementById('segment-slider');
+                    slider.style.transition = 'none';
+                    slider.style.width = active.offsetWidth + 'px';
+                    slider.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+                    requestAnimationFrame(() => slider.style.transition = '');
+                }
             },
             setupResizers() {
                 const setup = (id, variable, side, storageKey) => {
-                    const resizer = document.getElementById(id); let dragging = false;
+                    const resizer = document.getElementById(id);
+                    const panelId = side === 'left' ? 'sidebar' : 'panels-container';
+                    const panel = document.getElementById(panelId);
+                    const defaultWidth = side === 'left' ? 280 : 340;
+                    const snapThreshold = 80;
+                    const resistStart = 180;
+                    let dragging = false, lastRaw = 0, lastGoodWidth = null;
+
                     const onMove = (e) => {
                         if (!dragging) return;
-                        let val = side === 'left' ? e.clientX : window.innerWidth - e.clientX;
-                        if (val > 180 && val < 600) { root.style.setProperty(variable, val + 'px'); localStorage.setItem(storageKey, val + 'px'); }
+                        lastRaw = side === 'left' ? e.clientX : window.innerWidth - e.clientX;
+                        lastRaw = Math.max(0, lastRaw);
+
+                        if (lastRaw < resistStart) {
+                            // Rubber-band resistance: power curve reduces response near edge
+                            const t = lastRaw / resistStart;
+                            const display = resistStart * Math.pow(t, 0.6);
+                            root.style.setProperty(variable, display + 'px');
+                            resizer.classList.toggle('snap-zone', lastRaw < snapThreshold);
+                        } else if (lastRaw <= 600) {
+                            root.style.setProperty(variable, lastRaw + 'px');
+                            localStorage.setItem(storageKey, lastRaw + 'px');
+                            lastGoodWidth = lastRaw;
+                            resizer.classList.remove('snap-zone');
+                        }
                     };
-                    const onEnd = () => { dragging = false; document.body.classList.remove('is-dragging'); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onEnd); };
-                    resizer.onmousedown = (e) => { dragging = true; document.body.classList.add('is-dragging'); window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onEnd); e.preventDefault(); };
+
+                    const onEnd = () => {
+                        dragging = false;
+                        document.body.classList.remove('is-dragging');
+                        resizer.classList.remove('snap-zone');
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onEnd);
+
+                        if (lastRaw < snapThreshold) {
+                            // Snap to collapse — restore variable then collapse
+                            root.style.setProperty(variable, (lastGoodWidth || defaultWidth) + 'px');
+                            panel.classList.add('collapsed');
+                            if (side === 'right') document.getElementById('toggle-right').classList.add('rotated');
+                        } else if (lastRaw < resistStart) {
+                            // Released in resistance zone → spring back to minimum
+                            root.style.setProperty(variable, resistStart + 'px');
+                            localStorage.setItem(storageKey, resistStart + 'px');
+                        }
+                    };
+
+                    resizer.onmousedown = (e) => {
+                        if (panel.classList.contains('collapsed')) {
+                            panel.style.transition = 'none';
+                            panel.classList.remove('collapsed');
+                            root.style.setProperty(variable, '0px');
+                            panel.offsetHeight; // force reflow
+                            panel.style.transition = '';
+                            if (side === 'right') document.getElementById('toggle-right').classList.remove('rotated');
+                        }
+                        lastGoodWidth = parseFloat(localStorage.getItem(storageKey)) || defaultWidth;
+                        lastRaw = 0;
+                        dragging = true;
+                        document.body.classList.add('is-dragging');
+                        window.addEventListener('mousemove', onMove);
+                        window.addEventListener('mouseup', onEnd);
+                        e.preventDefault();
+                    };
                 };
                 setup('left-resizer', '--sidebar-width', 'left', 'sidebar_width');
                 setup('right-resizer', '--panels-width', 'right', 'panels_width');
             },
             setupParaActions() {
-                document.getElementById('readable-content').querySelectorAll('p').forEach(p => {
-                    p.dataset.text = p.innerText;
-                    // Play button on the left
-                    const playBtn = document.createElement('button');
-                    playBtn.className = 'p-btn p-play';
-                    playBtn.title = '朗读';
-                    playBtn.textContent = '▶';
-                    playBtn.onclick = (e) => { e.stopPropagation(); Audio.play(p); };
-                    p.appendChild(playBtn);
-                    // Translate button on the right
-                    const transBtn = document.createElement('button');
-                    transBtn.className = 'p-btn p-translate';
-                    transBtn.title = '翻译';
-                    transBtn.textContent = '译';
-                    transBtn.onclick = (e) => { e.stopPropagation(); AI.translateInline(p); };
-                    p.appendChild(transBtn);
+                const content = document.getElementById('readable-content');
+                const scrollEl = document.getElementById('main-scroll');
+                // Store text on each paragraph
+                content.querySelectorAll('p').forEach(p => { p.dataset.text = p.innerText; });
+
+                // Create floating button container inside scroll area
+                const container = document.createElement('div');
+                container.id = 'floating-para-btns';
+
+                const playBtn = document.createElement('button');
+                playBtn.className = 'p-btn p-play';
+                playBtn.title = t('Read aloud');
+                playBtn.dataset.i18nTitle = 'Read aloud';
+                playBtn.textContent = '▶';
+                playBtn.onclick = (e) => { e.stopPropagation(); if (container._currentP) Audio.play(container._currentP); };
+                container.appendChild(playBtn);
+
+                const transBtn = document.createElement('button');
+                transBtn.className = 'p-btn p-translate';
+                transBtn.title = t('Translate');
+                transBtn.dataset.i18nTitle = 'Translate';
+                transBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="width:21px;height:21px"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>';
+                transBtn.onclick = (e) => { e.stopPropagation(); if (container._currentP) AI.translateInline(container._currentP); };
+                container.appendChild(transBtn);
+
+                // Insert into the content-container (which has position context)
+                const contentContainer = content.closest('.content-container') || content.parentElement;
+                contentContainer.style.position = 'relative';
+                contentContainer.appendChild(container);
+
+                // Position floating buttons to hovered paragraph
+                let _relocTimer = null;
+                const positionBtns = (p) => {
+                    if (!p) { container.classList.remove('visible'); return; }
+                    const isSameP = container._currentP === p;
+                    container._currentP = p;
+
+                    const hideTTS = content.classList.contains('hide-tts');
+                    const hideTrans = content.classList.contains('hide-inline-translate');
+                    if (hideTTS && hideTrans) { container.classList.remove('visible'); return; }
+
+                    playBtn.style.display = hideTTS ? 'none' : '';
+                    transBtn.style.display = hideTrans ? 'none' : '';
+
+                    if (!hideTTS && !hideTrans) {
+                        playBtn.style.position = 'absolute';
+                        playBtn.style.top = '-18px';
+                        transBtn.style.position = 'absolute';
+                        transBtn.style.top = '18px';
+                    } else {
+                        playBtn.style.position = '';
+                        playBtn.style.top = '';
+                        transBtn.style.position = '';
+                        transBtn.style.top = '';
+                    }
+
+                    const moveTo = () => {
+                        const containerRect = contentContainer.getBoundingClientRect();
+                        const pRect = p.getBoundingClientRect();
+                        const midY = pRect.top + pRect.height / 2 - containerRect.top;
+                        container.style.left = (pRect.left - containerRect.left - 48) + 'px';
+                        container.style.top = midY + 'px';
+                    };
+
+                    if (isSameP || !container.classList.contains('visible')) {
+                        // First show or same paragraph: just move and fade in
+                        moveTo();
+                        container.classList.remove('relocating');
+                        container.classList.add('visible');
+                    } else {
+                        // Different paragraph: fade out → move → fade in
+                        if (_relocTimer) clearTimeout(_relocTimer);
+                        container.classList.add('relocating');
+                        _relocTimer = setTimeout(() => {
+                            moveTo();
+                            container.classList.remove('relocating');
+                            container.classList.add('visible');
+                            _relocTimer = null;
+                        }, 100);
+                    }
+                };
+
+                // Listen to mouseover on the content area
+                content.addEventListener('mouseover', (e) => {
+                    const p = e.target.closest('.book-content p');
+                    if (p) positionBtns(p);
                 });
+                content.addEventListener('mouseleave', () => {
+                    container.classList.remove('visible');
+                });
+                // Keep buttons near floating btns container itself
+                container.addEventListener('mouseenter', () => {
+                    container.classList.add('visible');
+                });
+
                 // Restore TTS setting
                 const ttsEnabled = localStorage.getItem('reader_tts') !== 'false';
                 document.getElementById('toggle-tts').checked = ttsEnabled;
-                if (!ttsEnabled) document.getElementById('readable-content').classList.add('hide-tts');
+                if (!ttsEnabled) content.classList.add('hide-tts');
                 // Restore inline translate setting
                 const enabled = localStorage.getItem('reader_inline_translate') !== 'false';
                 document.getElementById('toggle-inline-translate').checked = enabled;
-                if (!enabled) document.getElementById('readable-content').classList.add('hide-inline-translate');
+                if (!enabled) content.classList.add('hide-inline-translate');
+            },
+            toggleLanguage() {
+                state.language = state.language === 'en' ? 'zh' : 'en';
+                localStorage.setItem('reader_language', state.language);
+                this._applyLanguage();
+            },
+            _applyLanguage() {
+                const isZh = state.language === 'zh';
+                const toggle = document.getElementById('lang-toggle');
+                const cur = toggle.querySelector('.lang-current');
+                const tgt = toggle.querySelector('.lang-target');
+                cur.textContent = isZh ? '中' : 'EN';
+                tgt.textContent = isZh ? 'EN' : '中';
+                cur.style.fontSize = isZh ? '0.8rem' : '';
+                cur.style.fontFamily = isZh ? '"Noto Sans SC", "Heiti SC", sans-serif' : '';
+                cur.style.fontWeight = isZh ? '850' : '';
+                cur.style.transform = isZh ? 'translateY(-1px) scaleX(1.2)' : '';
+                tgt.style.fontSize = isZh ? '' : '0.8rem';
+                tgt.style.fontFamily = isZh ? '' : '"Noto Sans SC", "Heiti SC", sans-serif';
+                tgt.style.fontWeight = isZh ? '' : '850';
+                tgt.style.transform = isZh ? 'rotateY(180deg)' : 'rotateY(180deg) translateY(-1px) scaleX(1.2)';
+                // Panel title: serif + bold for Chinese
+                const pt = document.getElementById('panel-title');
+                const ps = document.getElementById('panel-subtitle');
+                if (isZh) {
+                    pt.style.fontFamily = "Georgia, 'Noto Serif SC', serif";
+                    pt.style.fontSize = '0.95rem';
+                    pt.style.letterSpacing = '0.15em';
+                    ps.style.fontFamily = "'Noto Serif SC', serif";
+                } else {
+                    pt.style.fontFamily = '';
+                    pt.style.fontSize = '0.75rem';
+                    pt.style.letterSpacing = '0.1em';
+                    ps.style.fontFamily = '';
+                }
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    el.textContent = t(el.dataset.i18n);
+                });
+                document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                    const keys = el.dataset.i18nPlaceholder.split('\\n');
+                    el.placeholder = keys.map(k => t(k)).join('\n');
+                });
+                document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                    el.title = t(el.dataset.i18nTitle);
+                });
+                document.querySelectorAll('[data-i18n-tip]').forEach(el => {
+                    const keys = el.dataset.i18nTip.split('|');
+                    el.innerHTML = keys.map(k => t(k)).join('<br>');
+                });
+                // Re-render Marginia story if visible
+                const story = document.getElementById('marginia-story');
+                if (story) { story.remove(); AI.showStory(); }
+                // Update reading stats
+                ReadingStats.update(ReadingStats._lastRatio);
             },
             toggleTTS(on) {
                 localStorage.setItem('reader_tts', on);
@@ -628,13 +1508,24 @@
 
         const AI = {
             _prompts: {
-                concepts: '请详细解析本章的核心知识点和关键概念，逐一说明其含义和重要性',
-                difficulties: '请找出本章中较难理解的内容，用通俗易懂的方式逐一解释',
-                reading: '基于本章的主题和内容，推荐相关的拓展阅读书籍或资料，并简述推荐理由',
-                insight: '请对本章进行深度解读，分析作者的深层意图、隐含主题和独到见解',
-                writing: '请分析本章的写作技巧、叙事手法和语言风格特点',
+                concepts: '请提炼本章的核心知识点和关键概念。对每个概念：先用一句话定义，再结合本章的具体内容说明它为什么重要，最后指出它和全书主题的关联',
+                difficulties: '请找出本章中最可能让读者困惑的 3-5 个地方（可以是专业术语、文化背景、隐含逻辑、或反常识的观点），用通俗的语言逐一解释。如果涉及专业领域，给出类比帮助理解',
+                reading: '基于本章讨论的主题，推荐 3-5 本相关的书或文章。每本说明：1）它讲什么 2）它和本章主题的关系 3）适合什么水平的读者。优先推荐经典和高评价作品',
+                characters: '请梳理本章出现的所有人物。对每个人物说明：身份背景、在本章中做了什么、动机是什么、和其他人物的关系。如果人物有前后变化，指出变化的关键节点',
+                insight: '请跳出本章的文字表面，从更深的层面解读：作者真正想要表达什么？有什么没有明说但暗示了的东西？本章的主题在当下有什么现实意义？可以和其他作品、历史事件或社会现象做对比',
+                writing: '请从写作技巧的角度分析本章：叙事视角的选择、结构编排的用意、语言风格的特点、修辞手法的运用。指出哪些技巧特别有效，如果你是写作者可以从中学到什么',
             },
-            _labels: { summarize: '总结本章', concepts: '知识详解', difficulties: '难点解析', reading: '拓展阅读', insight: '深度洞察', writing: '写作手法' },
+            _labels: { summarize: 'Summarize', concepts: 'Key Concepts', difficulties: 'Difficult Parts', reading: 'Further Reading', characters: 'Characters', insight: 'Deep Insight', writing: 'Writing Style' },
+            _abortCtrl: null,
+            _loadingHtml(text) {
+                return `<div class="loading-dots">${text}</div><button class="stop-btn" onclick="AI.stopRequest()">${t('Stop')}</button>`;
+            },
+            stopRequest() {
+                if (this._abortCtrl) {
+                    this._abortCtrl.abort();
+                    this._abortCtrl = null;
+                }
+            },
             _hideEmpty() {
                 const el = document.getElementById('ai-empty-state');
                 if (el) el.style.display = 'none';
@@ -646,6 +1537,200 @@
                 const c = document.getElementById('ai-content');
                 c.scrollTop = c.scrollHeight;
             },
+            _addDelBtn(bubble, msgId) {
+                const btn = document.createElement('button');
+                btn.className = 'msg-del';
+                btn.textContent = '×';
+                btn.onclick = (e) => { e.stopPropagation(); AI.deleteMessage(msgId); };
+                bubble.appendChild(btn);
+                bubble.dataset.msgId = msgId;
+            },
+            _currentSession() {
+                return state.chatSessions.find(s => s.id === state.activeSessionId);
+            },
+            _ensureSession() {
+                if (!state.activeSessionId || !this._currentSession()) {
+                    const session = { id: ++state._sessionId, title: '', messages: [], created: Date.now() };
+                    state.chatSessions.push(session);
+                    state.activeSessionId = session.id;
+                    state.chatMessages = session.messages;
+                }
+            },
+            _saveMsg(role, html) {
+                this._ensureSession();
+                const msg = { id: ++state._msgId, role, html, ch: state.chapterIndex, ts: Date.now() };
+                state.chatMessages.push(msg);
+                // Auto-title from first user message
+                const session = this._currentSession();
+                if (session && !session.title && role === 'user') {
+                    const text = html.replace(/<[^>]*>/g, '');
+                    session.title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+                }
+                this._persistChat();
+                return msg;
+            },
+            _persistChat() {
+                ChatStore.save(state.bookId, { sessions: state.chatSessions, activeId: state.activeSessionId });
+            },
+            _renderMessages(messages) {
+                const history = document.getElementById('ai-chat-history');
+                history.innerHTML = '';
+                messages.forEach(msg => {
+                    const bubble = document.createElement('div');
+                    bubble.className = `chat-bubble ${msg.role}`;
+                    bubble.innerHTML = msg.html;
+                    this._addDelBtn(bubble, msg.id);
+                    history.appendChild(bubble);
+                });
+            },
+            deleteMessage(msgId) {
+                const idx = state.chatMessages.findIndex(m => m.id === msgId);
+                if (idx !== -1) state.chatMessages.splice(idx, 1);
+                this._persistChat();
+                const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+                if (el) {
+                    el.style.transition = 'opacity 0.3s, transform 0.3s';
+                    el.style.opacity = '0';
+                    el.style.transform = 'translateX(20px)';
+                    setTimeout(() => el.remove(), 300);
+                }
+                // If current session is now empty, remove it
+                const session = this._currentSession();
+                if (session && session.messages.length === 0) {
+                    state.chatSessions = state.chatSessions.filter(s => s.id !== session.id);
+                    state.activeSessionId = 0;
+                    state.chatMessages = [];
+                    this._persistChat();
+                    setTimeout(() => {
+                        document.getElementById('ai-empty-state').style.display = '';
+                    }, 350);
+                }
+            },
+            newSession() {
+                // Don't create if current session is empty or no session exists
+                const current = this._currentSession();
+                if (!current || current.messages.length === 0) return;
+                // Close session list if open
+                this._closeSessionList();
+                // Deactivate current session
+                state.activeSessionId = 0;
+                state.chatMessages = [];
+                this._persistChat();
+                // Clear display
+                document.getElementById('ai-chat-history').innerHTML = '';
+                const story = document.getElementById('marginia-story');
+                if (story) story.remove();
+                document.getElementById('ai-empty-state').style.display = '';
+            },
+            switchSession(id) {
+                const session = state.chatSessions.find(s => s.id === id);
+                if (!session) return;
+                state.activeSessionId = id;
+                state.chatMessages = session.messages;
+                this._hideEmpty();
+                this._closeSessionList();
+                const story = document.getElementById('marginia-story');
+                if (story) story.remove();
+                this._renderMessages(session.messages);
+                this._persistChat();
+                this._scrollBottom();
+            },
+            deleteSession(id) {
+                if (!confirm(t('Delete this session?'))) return;
+                state.chatSessions = state.chatSessions.filter(s => s.id !== id);
+                if (state.activeSessionId === id) {
+                    if (state.chatSessions.length > 0) {
+                        const latest = state.chatSessions[state.chatSessions.length - 1];
+                        state.activeSessionId = latest.id;
+                        state.chatMessages = latest.messages;
+                        this._hideEmpty();
+                        this._renderMessages(latest.messages);
+                    } else {
+                        state.activeSessionId = 0;
+                        state.chatMessages = [];
+                        document.getElementById('ai-chat-history').innerHTML = '';
+                        document.getElementById('ai-empty-state').style.display = '';
+                    }
+                }
+                this._persistChat();
+                // Refresh session list if showing
+                const list = document.getElementById('session-list');
+                if (list) { list.remove(); this.showSessionList(); }
+            },
+            showSessionList() {
+                const existing = document.getElementById('session-list');
+                if (existing) { this._closeSessionList(); return; }
+                const list = document.createElement('div');
+                list.id = 'session-list';
+                list.className = 'session-list';
+                if (state.chatSessions.length === 0) {
+                    list.innerHTML = `<div class="session-empty">${t('No chat history')}</div>`;
+                } else {
+                    const sorted = [...state.chatSessions].sort((a, b) => b.created - a.created);
+                    sorted.forEach(s => {
+                        const isActive = s.id === state.activeSessionId;
+                        const d = new Date(s.created);
+                        const dateStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+                        const item = document.createElement('div');
+                        item.className = `session-item${isActive ? ' active' : ''}`;
+                        item.onclick = () => AI.switchSession(s.id);
+                        item.innerHTML = `
+                            <div class="session-title">${s.title || t('New Chat')}</div>
+                            <div class="session-meta"><span>${dateStr}</span><span>${s.messages.length} ${t('messages')}</span></div>
+                            <button class="session-del" onclick="event.stopPropagation(); AI.deleteSession(${s.id})">×</button>
+                        `;
+                        list.appendChild(item);
+                    });
+                }
+                // Insert between header and ai-content
+                const panel = document.getElementById('ai-panel');
+                const content = document.getElementById('ai-content');
+                panel.insertBefore(list, content);
+            },
+            _closeSessionList() {
+                const list = document.getElementById('session-list');
+                if (list) list.remove();
+            },
+            async _restoreChat() {
+                await ChatStore.init();
+                const data = await ChatStore.load(state.bookId);
+                if (!data) return;
+                // Migration: old format was array of messages, new format is { sessions, activeId }
+                if (Array.isArray(data)) {
+                    if (data.length === 0) return;
+                    // Migrate old single-array format to session
+                    const maxId = Math.max(...data.map(m => m.id));
+                    const session = { id: 1, title: '', messages: data, created: data[0]?.ts || Date.now() };
+                    const firstUser = data.find(m => m.role === 'user');
+                    if (firstUser) {
+                        const text = firstUser.html.replace(/<[^>]*>/g, '');
+                        session.title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+                    }
+                    state.chatSessions = [session];
+                    state.activeSessionId = 1;
+                    state.chatMessages = session.messages;
+                    state._msgId = maxId;
+                    state._sessionId = 1;
+                    this._persistChat(); // Save in new format
+                } else if (data.sessions) {
+                    state.chatSessions = data.sessions;
+                    state.activeSessionId = data.activeId || 0;
+                    if (data.sessions.length > 0) {
+                        const allMsgIds = data.sessions.flatMap(s => s.messages.map(m => m.id));
+                        state._msgId = allMsgIds.length ? Math.max(...allMsgIds) : 0;
+                        state._sessionId = Math.max(...data.sessions.map(s => s.id));
+                    }
+                    const active = this._currentSession();
+                    if (active) {
+                        state.chatMessages = active.messages;
+                    }
+                }
+                // Render active session if exists
+                if (state.chatMessages.length > 0) {
+                    this._hideEmpty();
+                    this._renderMessages(state.chatMessages);
+                }
+            },
             async quickAction(type) {
                 this._hideEmpty();
                 this._ensurePanel();
@@ -654,7 +1739,9 @@
                 // User action label
                 const userBubble = document.createElement('div');
                 userBubble.className = 'chat-bubble user';
-                userBubble.textContent = this._labels[type];
+                userBubble.textContent = t(this._labels[type]);
+                const uMsg = this._saveMsg('user', userBubble.innerHTML);
+                this._addDelBtn(userBubble, uMsg.id);
                 history.appendChild(userBubble);
 
                 if (type === 'summarize') {
@@ -671,6 +1758,8 @@
                     const bubble = document.createElement('div');
                     bubble.className = 'chat-bubble ai';
                     bubble.innerHTML = this._formatAnalysis(cache.get(cacheKey));
+                    const aMsg = this._saveMsg('ai', bubble.innerHTML);
+                    this._addDelBtn(bubble, aMsg.id);
                     history.appendChild(bubble);
                     this._scrollBottom();
                     return;
@@ -678,48 +1767,67 @@
 
                 const bubble = document.createElement('div');
                 bubble.className = 'chat-bubble ai';
-                bubble.innerHTML = '<div class="loading-dots">分析中...</div>';
+                bubble.innerHTML = this._loadingHtml(t('Analyzing...'));
                 history.appendChild(bubble);
                 this._scrollBottom();
 
+                this._abortCtrl = new AbortController();
                 try {
-                    const resp = await fetch('/api/ai/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: state.bookId, chapter_index: state.chapterIndex }) });
+                    const resp = await fetch('/api/ai/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_id: state.bookId, chapter_index: state.chapterIndex }), signal: this._abortCtrl.signal });
                     const data = await resp.json();
                     cache.set(cacheKey, data);
                     bubble.innerHTML = this._formatAnalysis(data);
+                    const aMsg = this._saveMsg('ai', bubble.innerHTML);
+                    this._addDelBtn(bubble, aMsg.id);
                 } catch (e) {
-                    bubble.innerHTML = '<span style="opacity:0.5">分析服务暂时不可用</span>';
+                    if (e.name === 'AbortError') {
+                        bubble.innerHTML = `<span style="opacity:0.4">${t('Stopped')}</span>`;
+                    } else {
+                        bubble.innerHTML = '<span style="opacity:0.5">' + t('Analysis service temporarily unavailable') + '</span>';
+                    }
+                } finally {
+                    this._abortCtrl = null;
                 }
                 this._scrollBottom();
             },
             _formatAnalysis(data) {
-                const kpHtml = data.key_points ? data.key_points.map(p => `<li>${p}</li>`).join('') : '';
+                const kpHtml = data.key_points ? data.key_points.map(p => `<li>${_md(p)}</li>`).join('') : '';
                 return `
-                    <div class="analysis-card"><div class="analysis-label">叙事总结</div><div class="analysis-text">${data.summary || ''}</div></div>
-                    <div class="analysis-card"><div class="analysis-label">核心冲突</div><div class="analysis-text"><ul style="margin:0;padding-left:1.2em">${kpHtml}</ul></div></div>
-                    <div class="analysis-card"><div class="analysis-label">难点解析</div><div class="analysis-text">${data.difficulties || ''}</div></div>
-                    <div class="analysis-card"><div class="analysis-label">深度洞察</div><div class="analysis-text">${data.insight || ''}</div></div>
+                    <div class="analysis-card"><div class="analysis-label">${t('Summary')}</div><div class="analysis-text">${_md(data.summary || '')}</div></div>
+                    <div class="analysis-card"><div class="analysis-label">${t('Key Points')}</div><div class="analysis-text"><ul style="margin:0;padding-left:1.2em">${kpHtml}</ul></div></div>
+                    <div class="analysis-card"><div class="analysis-label">${t('Difficult Parts')}</div><div class="analysis-text">${_md(data.difficulties || '')}</div></div>
+                    <div class="analysis-card"><div class="analysis-label">${t('Deep Insight')}</div><div class="analysis-text">${_md(data.insight || '')}</div></div>
                 `;
             },
             async _chatRequest(question) {
                 const history = document.getElementById('ai-chat-history');
                 const aiBubble = document.createElement('div');
                 aiBubble.className = 'chat-bubble ai';
-                aiBubble.innerHTML = '<div class="loading-dots">思考中...</div>';
+                aiBubble.innerHTML = this._loadingHtml(t('Thinking...'));
                 history.appendChild(aiBubble);
                 this._scrollBottom();
 
+                this._abortCtrl = new AbortController();
                 try {
                     const resp = await fetch('/api/ai/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ book_id: state.bookId, chapter_index: state.chapterIndex, question })
+                        body: JSON.stringify({ book_id: state.bookId, chapter_index: state.chapterIndex, question }),
+                        signal: this._abortCtrl.signal
                     });
                     const data = await resp.json();
                     if (data.detail) throw new Error(data.detail);
-                    aiBubble.innerHTML = data.answer;
+                    aiBubble.innerHTML = _md(data.answer);
+                    const aMsg = this._saveMsg('ai', aiBubble.innerHTML);
+                    this._addDelBtn(aiBubble, aMsg.id);
                 } catch (e) {
-                    aiBubble.innerHTML = `<span style="opacity:0.5">${e.message}</span>`;
+                    if (e.name === 'AbortError') {
+                        aiBubble.innerHTML = `<span style="opacity:0.4">${t('Stopped')}</span>`;
+                    } else {
+                        aiBubble.innerHTML = `<span style="opacity:0.5">${e.message}</span>`;
+                    }
+                } finally {
+                    this._abortCtrl = null;
                 }
                 this._scrollBottom();
             },
@@ -732,20 +1840,31 @@
                 const userBubble = document.createElement('div');
                 userBubble.className = 'chat-bubble user';
                 userBubble.textContent = text.length > 80 ? text.substring(0, 80) + '...' : text;
+                const uMsg = this._saveMsg('user', userBubble.innerHTML);
+                this._addDelBtn(userBubble, uMsg.id);
                 history.appendChild(userBubble);
 
                 const bubble = document.createElement('div');
                 bubble.className = 'chat-bubble ai';
-                bubble.innerHTML = '<div class="loading-dots">翻译中...</div>';
+                bubble.innerHTML = this._loadingHtml(t('Translating...'));
                 history.appendChild(bubble);
                 this._scrollBottom();
 
+                this._abortCtrl = new AbortController();
                 try {
-                    const resp = await fetch('/api/ai/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+                    const resp = await fetch('/api/ai/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }), signal: this._abortCtrl.signal });
                     const data = await resp.json();
-                    bubble.innerHTML = `<div class="chat-bubble-label">翻译</div>${data.translation}`;
+                    bubble.innerHTML = `<div class="chat-bubble-label">${t('Translation')}</div>${_md(data.translation)}`;
+                    const aMsg = this._saveMsg('ai', bubble.innerHTML);
+                    this._addDelBtn(bubble, aMsg.id);
                 } catch (e) {
-                    bubble.innerHTML = '<span style="opacity:0.5">翻译服务暂时不可用</span>';
+                    if (e.name === 'AbortError') {
+                        bubble.innerHTML = `<span style="opacity:0.4">${t('Stopped')}</span>`;
+                    } else {
+                        bubble.innerHTML = '<span style="opacity:0.5">' + t('Translation service temporarily unavailable') + '</span>';
+                    }
+                } finally {
+                    this._abortCtrl = null;
                 }
                 this._scrollBottom();
             },
@@ -755,7 +1874,7 @@
                 const text = pEl.dataset.text || pEl.innerText;
                 const div = document.createElement('div');
                 div.className = 'p-translation';
-                div.innerHTML = '<span class="loading-hint">正在翻译，请稍候...</span>';
+                div.innerHTML = '<span class="loading-hint">' + t('Translating, please wait...') + '</span>';
                 pEl.after(div);
                 try {
                     const resp = await fetch('/api/ai/translate-stream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
@@ -769,7 +1888,7 @@
                         div.textContent += decoder.decode(value, { stream: true });
                     }
                 } catch (e) {
-                    div.textContent = '翻译服务暂时不可用';
+                    div.textContent = t('Translation service temporarily unavailable');
                 }
             },
             askAbout(text) {
@@ -786,59 +1905,294 @@
                 const userBubble = document.createElement('div');
                 userBubble.className = 'chat-bubble user';
                 userBubble.textContent = question;
+                const uMsg = this._saveMsg('user', userBubble.innerHTML);
+                this._addDelBtn(userBubble, uMsg.id);
                 history.appendChild(userBubble);
 
                 await this._chatRequest(question);
             },
             clear() {
-                document.getElementById('ai-chat-history').innerHTML = '';
+                const history = document.getElementById('ai-chat-history');
+                const story = document.getElementById('marginia-story');
+                const hasContent = history.innerHTML.trim() !== '' || story;
+                if (!hasContent) return;
+                if (!confirm(t('Clear all chat history?'))) return;
+                history.innerHTML = '';
+                if (story) story.remove();
+                this._closeSessionList();
+                state.chatSessions = [];
+                state.activeSessionId = 0;
+                state.chatMessages = [];
+                state._msgId = 0;
+                state._sessionId = 0;
+                ChatStore.remove(state.bookId);
                 document.getElementById('ai-empty-state').style.display = '';
+            },
+            dismissStory() {
+                const story = document.getElementById('marginia-story');
+                if (story) {
+                    story.remove();
+                    if (!document.getElementById('ai-chat-history').innerHTML.trim()) {
+                        document.getElementById('ai-empty-state').style.display = '';
+                    }
+                }
+            },
+            showStory() {
+                this._hideEmpty();
+                const existing = document.getElementById('marginia-story');
+                if (existing) { existing.remove(); document.getElementById('ai-empty-state').style.display = ''; return; }
+                const content = document.getElementById('ai-content');
+                const story = document.createElement('div');
+                story.id = 'marginia-story';
+                story.className = 'marginia-story';
+                if (state.language === 'zh') {
+                    story.innerHTML = `
+                        <div class="story-epigraph">知其白，守其黑<span class="epigraph-src">——《道德经》</span></div>
+                        <div class="story-body">
+                            <p>古人读书，常以朱笔在页边写下批注。最著名的，莫过于脂砚斋批《红楼梦》——有时那几个字的<em>眉批</em>，比正文还令人心动。</p>
+                            <p>批注者从不改动原文，只在空白处轻轻落笔：此处妙极，此处含悲，此处弦外有音。</p>
+                            <p>书页上写明的是白，字里行间未尽的是黑。知白两者皆知，却只在你发问时才开口。</p>
+                            <p>你翻到哪一页，她便在哪一页候着——安静地陪你读完整本书。</p>
+                        </div>
+                        <div class="story-seal" onclick="AI.dismissStory()"><svg viewBox="0 0 50 50" width="27" height="27"><defs><filter id="seal-worn"><feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="5" seed="2" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G"/></filter></defs><g filter="url(#seal-worn)" opacity="0.85"><rect x="2" y="2" width="46" height="46" rx="2" fill="none" stroke="#BF3B33" stroke-width="2"/><g stroke="#BF3B33" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 L7 11 L17 11 Z" fill="#BF3B33" stroke-width="0.5"/><line x1="12" y1="11" x2="12" y2="23" stroke-width="2.8"/><line x1="6" y1="17" x2="18" y2="17" stroke-width="2.2"/><ellipse cx="34" cy="14" rx="10" ry="10" fill="none" stroke-width="2.5"/><circle cx="25" cy="28" r="1.5" fill="#BF3B33" stroke="none"/><rect x="11" y="31" width="28" height="15" rx="3.5" fill="none" stroke-width="2.5"/><line x1="11" y1="39" x2="39" y2="39" stroke-width="2.2"/></g></g></svg></div>
+                    `;
+                } else {
+                    story.innerHTML = `
+                        <div class="story-title">The Story of Marginia</div>
+                        <div class="story-body">
+                            <p>In the age of printed books, readers would leave their most intimate thoughts in the <em>margins</em> — questions, epiphanies, arguments with the author, love letters to an idea.</p>
+                            <p>Those margins were the quietest, most honest conversations in all of literature.</p>
+                            <p><em>Marginia</em> lives there — in the space between the text and your thoughts. She reads alongside you, not ahead of you. She answers when asked, stays silent when not.</p>
+                            <p>She can summarize what confuses, translate what's foreign, and illuminate what's hidden. But she never speaks first.</p>
+                            <p>Think of her as the margin made alive — a companion who knows every word on the page, but only cares about the ones that matter to <em>you</em>.</p>
+                        </div>
+                        <div class="story-signature" onclick="AI.dismissStory()">Marginia</div>
+                    `;
+                }
+                content.insertBefore(story, content.firstChild);
             }
         };
 
         const Audio = {
-            player: new window.Audio(), activeEl: null,
+            player: new window.Audio(), activeEl: null, rate: '+0%',
+            _paras: [], _paraIdx: -1,
+            _voices: [
+                { group: 'Mandarin', items: [['zh-CN-XiaoxiaoNeural','Xiaoxiao · F'],['zh-CN-XiaoyiNeural','Xiaoyi · F'],['zh-CN-YunxiNeural','Yunxi · M'],['zh-CN-YunjianNeural','Yunjian · M'],['zh-CN-YunyangNeural','Yunyang · M'],['zh-CN-YunxiaNeural','Yunxia · M']] },
+                { group: 'Dialect', items: [['zh-CN-liaoning-XiaobeiNeural','Xiaobei · Dongbei'],['zh-CN-shaanxi-XiaoniNeural','Xiaoni · Shaanxi']] },
+                { group: 'Cantonese', items: [['zh-HK-HiuGaaiNeural','HiuGaai · F'],['zh-HK-WanLungNeural','WanLung · M']] },
+                { group: 'Taiwanese', items: [['zh-TW-HsiaoChenNeural','HsiaoChen · F'],['zh-TW-YunJheNeural','YunJhe · M']] },
+                { group: 'English · US', items: [['en-US-AvaNeural','Ava · F'],['en-US-AndrewNeural','Andrew · M'],['en-US-EmmaNeural','Emma · F'],['en-US-BrianNeural','Brian · M']] },
+                { group: 'English · UK', items: [['en-GB-SoniaNeural','Sonia · F'],['en-GB-RyanNeural','Ryan · M'],['en-GB-LibbyNeural','Libby · F'],['en-GB-ThomasNeural','Thomas · M']] },
+            ],
+            _speeds: [['-50%','0.5x'],['-25%','0.75x'],['+0%','1.0x'],['+25%','1.25x'],['+50%','1.5x'],['+75%','1.75x'],['+100%','2.0x']],
             init() {
+                this._paras = Array.from(document.getElementById('readable-content').querySelectorAll('p'));
                 this.player.ontimeupdate = () => {
                     const p = (this.player.currentTime / this.player.duration) * 100 || 0;
                     document.getElementById('audio-progress').style.width = p + '%';
                 };
-                this.player.onended = () => { this.reset(); };
+                this.player.onended = () => { this._playNext(); };
+            },
+            _playNext() {
+                if (this._paraIdx < 0) { this.reset(); return; }
+                // Un-highlight current
+                if (this.activeEl) this.activeEl.style.background = '';
+                this._paraIdx++;
+                if (this._paraIdx >= this._paras.length) { this.reset(); return; }
+                const next = this._paras[this._paraIdx];
+                const text = (next.dataset.text || next.innerText).trim();
+                if (!text) { this._playNext(); return; }
+                this.activeEl = next;
+                next.style.background = 'color-mix(in srgb, var(--primary) 8%, transparent)';
+                next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                this.player.src = this._buildSrc(text);
+                this.player.play().catch(() => {});
             },
             reset() {
+                this._paraIdx = -1;
                 if(this.activeEl) this.activeEl.style.background = '';
+                this.activeEl = null;
                 this.updatePlayState(false);
                 document.getElementById('audio-console').classList.remove('visible');
             },
+            _buildSrc(text) {
+                const voice = this._autoVoice(text);
+                return `/api/tts?text=${encodeURIComponent(text)}&voice=${voice}&rate=${encodeURIComponent(this.rate)}`;
+            },
+            // Auto-detect language and pick matching voice; respect user's manual choice within the same language
+            _autoVoice(text) {
+                const cjk = (text.match(/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g) || []).length;
+                const isCJK = cjk > text.length * 0.15;
+                const userVoice = state.voice;
+                const userIsCJK = userVoice.startsWith('zh-');
+                // If user's voice matches text language, use it
+                if (isCJK && userIsCJK) return userVoice;
+                if (!isCJK && !userIsCJK) return userVoice;
+                // Mismatch: auto-select a default for the detected language
+                if (isCJK) return 'zh-CN-XiaoxiaoNeural';
+                return 'en-US-AvaNeural';
+            },
             play(el) {
                 if (this.activeEl === el && !this.player.paused) { this.player.pause(); this.updatePlayState(false); return; }
-                this.reset(); this.activeEl = el; el.style.background = 'color-mix(in srgb, var(--primary) 8%, transparent)';
+                if (this.activeEl) this.activeEl.style.background = '';
+                this.activeEl = el;
+                this._paraIdx = this._paras.indexOf(el);
+                el.style.background = 'color-mix(in srgb, var(--primary) 8%, transparent)';
                 const text = el.dataset.text || el.innerText;
-                this.player.src = `/api/tts?text=${encodeURIComponent(text)}&voice=${state.voice}`;
+                this.player.src = this._buildSrc(text);
                 this.player.play().catch(() => {});
                 this.updatePlayState(true);
                 document.getElementById('audio-console').classList.add('visible');
             },
             toggleAll() {
                 if (!this.player.paused) { this.player.pause(); this.updatePlayState(false); }
-                else {
-                    const paras = document.getElementById('readable-content').querySelectorAll('p');
-                    const text = Array.from(paras).map(p => p.dataset.text || p.innerText).join('\n').substring(0, 5000);
-                    this.player.src = `/api/tts?text=${encodeURIComponent(text)}&voice=${state.voice}`;
+                else if (this._paraIdx >= 0) {
+                    // Resume
                     this.player.play().catch(() => {}); this.updatePlayState(true);
+                } else {
+                    // Start from first paragraph
+                    this._paraIdx = -1;
+                    this.updatePlayState(true);
                     document.getElementById('audio-console').classList.add('visible');
+                    this._playNext();
                 }
             },
             stop() { this.player.pause(); this.player.currentTime = 0; this.reset(); },
             switchVoice(voiceId) {
                 state.voice = voiceId;
+                this._hidePopups();
+                this._reloadIfPlaying();
+            },
+            setRate(rate) {
+                this.rate = rate;
+                const idx = this._speeds.findIndex(([r]) => r === rate);
+                if (idx >= 0) this._updateSlider(idx);
+                this._reloadIfPlaying();
+            },
+            _reloadIfPlaying() {
+                if (!this.activeEl || this.player.paused) return;
+                const text = this.activeEl.dataset.text || this.activeEl.innerText;
+                this.player.src = this._buildSrc(text);
+                this.player.play().catch(() => {});
+            },
+            showVoiceMenu(btn) {
+                const popup = document.getElementById('voice-popup');
+                if (popup.classList.contains('visible')) { this._hidePopups(); return; }
+                this._hidePopups();
+                const list = document.getElementById('voice-popup-list');
+                let html = '<div class="ap-slider" id="voice-slider"></div>';
+                this._voices.forEach(g => {
+                    html += `<div class="ap-group">${t(g.group)}</div>`;
+                    g.items.forEach(([id, name]) => {
+                        const active = state.voice === id ? ' active' : '';
+                        html += `<div class="ap-item${active}" data-voice="${id}" onclick="Audio._selectVoice(this,'${id}')"><span>${t(name)}</span><span class="ap-check">✓</span></div>`;
+                    });
+                });
+                list.innerHTML = html;
+                this._showPopup(popup, btn);
+                // Position slider on active item without animation
+                const activeItem = list.querySelector('.ap-item.active');
+                if (activeItem) {
+                    activeItem.scrollIntoView({ block: 'center' });
+                    const slider = document.getElementById('voice-slider');
+                    slider.style.transition = 'none';
+                    slider.style.height = (activeItem.offsetHeight - 6) + 'px';
+                    slider.style.transform = `translateY(${activeItem.offsetTop + 3}px)`;
+                    requestAnimationFrame(() => slider.style.transition = '');
+                }
+            },
+            _selectVoice(el, voiceId) {
+                const list = document.getElementById('voice-popup-list');
+                const slider = document.getElementById('voice-slider');
+                list.querySelectorAll('.ap-item').forEach(i => i.classList.remove('active'));
+                el.classList.add('active');
+                slider.style.height = (el.offsetHeight - 6) + 'px';
+                slider.style.transform = `translateY(${el.offsetTop + 3}px)`;
+                state.voice = voiceId;
+                this._reloadIfPlaying();
+            },
+            showSpeedMenu(btn) {
+                const popup = document.getElementById('speed-popup');
+                if (popup.classList.contains('visible')) { this._hidePopups(); return; }
+                this._hidePopups();
+                const wrap = document.getElementById('speed-slider-wrap');
+                const idx = this._speeds.findIndex(([r]) => r === this.rate);
+                const pct = (idx / (this._speeds.length - 1)) * 100;
+                let labels = '';
+                this._speeds.forEach(([rate, label], i) => {
+                    const active = this.rate === rate ? ' active' : '';
+                    labels += `<span class="speed-label-dot${active}" onclick="Audio.setRate('${rate}')">${label}</span>`;
+                });
+                wrap.innerHTML = `<div class="speed-track" id="speed-track"><div class="speed-fill" id="speed-fill" style="width:${pct}%"></div><div class="speed-thumb" id="speed-thumb" style="left:${pct}%"></div></div><div class="speed-labels">${labels}</div>`;
+                this._showPopup(popup, btn);
+                // Enable drag on thumb and click on track
+                const thumb = document.getElementById('speed-thumb');
+                const track = document.getElementById('speed-track');
+                const snapToNearest = (clientX) => {
+                    const rect = track.getBoundingClientRect();
+                    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                    const nearest = Math.round(ratio * (this._speeds.length - 1));
+                    this.setRate(this._speeds[nearest][0]);
+                };
+                thumb.style.cursor = 'grab';
+                thumb.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    thumb.style.cursor = 'grabbing';
+                    thumb.classList.add('dragging');
+                    const onMove = (ev) => snapToNearest(ev.clientX);
+                    const onUp = () => {
+                        thumb.style.cursor = 'grab';
+                        thumb.classList.remove('dragging');
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                    };
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
+                });
+                track.style.cursor = 'pointer';
+                track.addEventListener('click', (e) => snapToNearest(e.clientX));
+            },
+            _updateSlider(idx) {
+                const pct = (idx / (this._speeds.length - 1)) * 100;
+                const fill = document.getElementById('speed-fill');
+                const thumb = document.getElementById('speed-thumb');
+                if (fill) fill.style.width = pct + '%';
+                if (thumb) thumb.style.left = pct + '%';
+                document.querySelectorAll('.speed-label-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+            },
+            _showPopup(popup, anchorBtn) {
+                const rect = anchorBtn.getBoundingClientRect();
+                popup.style.visibility = 'hidden';
+                popup.classList.add('visible');
+                const pw = popup.offsetWidth;
+                const ph = popup.offsetHeight;
+                popup.style.visibility = '';
+                let left = rect.left + rect.width / 2 - pw / 2;
+                let top = rect.top - ph - 8;
+                if (top < 8) top = rect.bottom + 8;
+                left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+                popup.style.left = left + 'px';
+                popup.style.top = top + 'px';
+                setTimeout(() => document.addEventListener('mousedown', this._outsideHandler), 0);
+                clearTimeout(this._leaveTimer);
+                popup.onmouseleave = () => { this._leaveTimer = setTimeout(() => this._hidePopups(), 900); };
+                popup.onmouseenter = () => clearTimeout(this._leaveTimer);
+            },
+            _hidePopups() {
+                clearTimeout(this._leaveTimer);
+                document.getElementById('voice-popup').classList.remove('visible');
+                document.getElementById('speed-popup').classList.remove('visible');
+                document.removeEventListener('mousedown', this._outsideHandler);
+            },
+            _outsideHandler(e) {
+                if (!e.target.closest('.audio-popup') && !e.target.closest('.player-label')) Audio._hidePopups();
             },
             updatePlayState(isPlaying) {
                 const btn = document.getElementById('play-main-btn');
                 if(isPlaying) {
                     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="white" stroke="white"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
                 } else {
-                    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="white" stroke="white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="white" stroke="white"><polygon points="7 3 21 12 7 21 7 3"></polygon></svg>`;
                 }
             }
         };
@@ -940,25 +2294,27 @@
                 const ratio = this._lastRatio;
                 const chIdx = state.chapterIndex;
                 const total = state.totalChapters;
+                const isZh = state.language === 'zh';
 
                 switch (this._mode) {
                     case 0: { // Chapter name
-                        return state.chapterTitle || `第 ${chIdx + 1} 章`;
+                        return state.chapterTitle || `Chapter ${chIdx + 1}`;
                     }
                     case 1: { // Chapter remaining time
                         const remaining = this._chapterChars * (1 - ratio);
                         const mins = Math.max(1, Math.ceil(remaining / this._cpm));
-                        return `本章剩余约 ${mins} 分钟`;
+                        return isZh ? `${mins} 分钟读完本章` : `${mins} min left in chapter`;
                     }
                     case 2: { // Book remaining time
                         const chapterDone = ratio;
                         const avgChars = this._chapterChars;
                         const remainChapters = (total - 1 - chIdx) + (1 - chapterDone);
                         const remainMins = Math.max(1, Math.ceil(remainChapters * avgChars / this._cpm));
-                        if (remainMins < 60) return `全书剩余约 ${remainMins} 分钟`;
+                        if (remainMins < 60) return isZh ? `${remainMins} 分钟读完全书` : `${remainMins} min left in book`;
                         const h = Math.floor(remainMins / 60);
                         const m = remainMins % 60;
-                        return m > 0 ? `全书剩余约 ${h} 小时 ${m} 分钟` : `全书剩余约 ${h} 小时`;
+                        if (isZh) return m > 0 ? `${h}小时${m}分钟` : `${h}小时`;
+                        return m > 0 ? `${h} hr ${m} min left` : `${h} hr left`;
                     }
                     case 3: { // Book percentage
                         const pct = ((chIdx + ratio) / total * 100);
@@ -969,7 +2325,7 @@
                         const pageH = main.clientHeight;
                         const totalPages = Math.max(1, Math.ceil(main.scrollHeight / pageH));
                         const curPage = Math.min(totalPages, Math.floor(main.scrollTop / pageH) + 1);
-                        return `第 ${curPage} 页 / 共 ${totalPages} 页`;
+                        return isZh ? `第${curPage}页 / 共${totalPages}页` : `Page ${curPage} of ${totalPages}`;
                     }
                     default: return '';
                 }
@@ -978,9 +2334,11 @@
 
         /* ========== Highlights Module — Highlight & Notes system ========== */
         const Highlights = {
-            _key: `reader_highlights_${state.bookId}_${state.chapterIndex}`,
-            _data: { version: 1, items: [] },
+            _key: `reader_highlights_${state.bookId}`,
+            _data: { version: 2, items: [] },
             _activeId: null, // currently editing note
+            _nbColorFilter: null, // active color filter (null = all)
+            _nbTimeSort: false, // sort by creation time
             init() {
                 this.load();
                 this._restoreAll();
@@ -999,7 +2357,36 @@
                         const parsed = JSON.parse(raw);
                         if (parsed && parsed.items) this._data = parsed;
                     }
+                    // Migrate old per-chapter keys into per-book store
+                    this._migrateOldKeys();
                 } catch(e) {}
+            },
+            _migrateOldKeys() {
+                let migrated = false;
+                for (let i = 0; i < state.totalChapters; i++) {
+                    const oldKey = `reader_highlights_${state.bookId}_${i}`;
+                    const raw = localStorage.getItem(oldKey);
+                    if (!raw) continue;
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && parsed.items && parsed.items.length) {
+                            const chTitle = (state.chapterTitles || {})[i] || `Chapter ${i + 1}`;
+                            parsed.items.forEach(item => {
+                                // Skip if already migrated (check by id)
+                                if (this._data.items.some(x => x.id === item.id)) return;
+                                item.chapterIndex = i;
+                                item.chapterTitle = chTitle;
+                                this._data.items.push(item);
+                            });
+                            migrated = true;
+                        }
+                        localStorage.removeItem(oldKey);
+                    } catch(e) {}
+                }
+                if (migrated) {
+                    this._data.version = 2;
+                    this.save();
+                }
             },
             save() {
                 try { localStorage.setItem(this._key, JSON.stringify(this._data)); } catch(e) {}
@@ -1007,9 +2394,12 @@
             _getParas() {
                 return document.querySelectorAll('#readable-content p');
             },
+            _currentItems() {
+                return this._data.items.filter(i => i.chapterIndex === state.chapterIndex);
+            },
             add(paraIndex, startOffset, endOffset, text, color) {
                 const id = 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-                const item = { id, paraIndex, startOffset, endOffset, text, color: color || 'yellow', note: '', createdAt: Date.now() };
+                const item = { id, paraIndex, startOffset, endOffset, text, color: color || 'yellow', note: '', createdAt: Date.now(), chapterIndex: state.chapterIndex, chapterTitle: state.chapterTitle };
                 this._data.items.push(item);
                 this.save();
                 this._applyOne(item);
@@ -1066,10 +2456,11 @@
                 this._activeId = null;
             },
             _restoreAll() {
-                if (!this._data.items.length) return;
+                const currentItems = this._currentItems();
+                if (!currentItems.length) return;
                 // Group by paraIndex, sort each group by startOffset descending (to avoid offset drift)
                 const groups = {};
-                this._data.items.forEach(item => {
+                currentItems.forEach(item => {
                     if (!groups[item.paraIndex]) groups[item.paraIndex] = [];
                     groups[item.paraIndex].push(item);
                 });
@@ -1123,7 +2514,11 @@
                     span.className = `hl-${item.color}`;
                     span.dataset.hlId = item.id;
                     span.onclick = (e) => { e.stopPropagation(); this._showNoteTooltip(item.id, span); };
-                    range.surroundContents(span);
+                    // Use extractContents+insertNode instead of surroundContents
+                    // to handle ranges that cross element boundaries (e.g. <i>, <b>)
+                    const fragment = range.extractContents();
+                    span.appendChild(fragment);
+                    range.insertNode(span);
 
                     // Add note indicator if has note
                     if (item.note) {
@@ -1199,30 +2594,140 @@
 
                 const userBubble = document.createElement('div');
                 userBubble.className = 'chat-bubble user';
-                userBubble.textContent = '笔记本';
+                userBubble.textContent = t('Notebook');
                 history.appendChild(userBubble);
 
                 const bubble = document.createElement('div');
                 bubble.className = 'chat-bubble ai';
 
                 if (!this._data.items.length) {
-                    bubble.innerHTML = '<span style="opacity:0.5">本章暂无高亮和笔记</span>';
+                    bubble.innerHTML = '<span style="opacity:0.5">' + t('No highlights yet') + '</span>';
                 } else {
-                    let html = `<div class="analysis-label">本章高亮 & 笔记 (${this._data.items.length})</div>`;
+                    let html = `<div class="analysis-label">${t('Highlights & Notes')} (${this._data.items.length})</div>`;
                     this._data.items.forEach((item, i) => {
                         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${
-                            {yellow:'#FACC15',green:'#4ADE80',blue:'#60A5FA',pink:'#F472B6'}[item.color]||'#FACC15'
+                            {yellow:'#FACC15',green:'#4ADE80',blue:'#60A5FA',pink:'#F472B6',gray:'#9CA3AF'}[item.color]||'#FACC15'
                         };margin-right:6px;"></span>`;
                         html += `<div class="hl-review-item" onclick="Highlights._scrollTo(${item.paraIndex})">
                             <div class="hl-review-text">${colorDot}"${item.text}"</div>
                             ${item.note ? `<div class="hl-review-note">${item.note}</div>` : ''}
-                            <div class="hl-review-meta">段落 ${item.paraIndex + 1}</div>
+                            <div class="hl-review-meta">${t('Paragraph')} ${item.paraIndex + 1}</div>
                         </div>`;
                     });
                     bubble.innerHTML = html;
                 }
                 history.appendChild(bubble);
                 AI._scrollBottom();
+            },
+            renderNotebook() {
+                const content = document.getElementById('nb-content');
+                const count = document.getElementById('nb-count');
+                const toolbar = document.getElementById('nb-toolbar');
+                if (!this._data.items.length) {
+                    count.textContent = '';
+                    toolbar.style.display = 'none';
+                    content.innerHTML = `<div class="nb-empty">${t('No highlights yet')}</div>`;
+                    return;
+                }
+                count.textContent = this._data.items.length;
+                toolbar.style.display = 'flex';
+
+                // Apply filters
+                const search = (document.getElementById('nb-search')?.value || '').toLowerCase();
+                let items = this._data.items.filter(item => {
+                    if (this._nbColorFilter && item.color !== this._nbColorFilter) return false;
+                    if (search && !item.text.toLowerCase().includes(search) && !(item.note || '').toLowerCase().includes(search)) return false;
+                    return true;
+                });
+
+                // Apply sort
+                if (this._nbTimeSort) {
+                    items = [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                }
+
+                if (!items.length) {
+                    content.innerHTML = `<div class="nb-empty">${t('No matching highlights')}</div>`;
+                    return;
+                }
+
+                let html = '';
+                if (this._nbTimeSort) {
+                    // Flat list sorted by time
+                    items.forEach(item => { html += this._renderNbItem(item); });
+                } else {
+                    // Group by chapter
+                    const chapters = new Map();
+                    items.forEach(item => {
+                        const ci = item.chapterIndex ?? state.chapterIndex;
+                        if (!chapters.has(ci)) chapters.set(ci, { title: item.chapterTitle || `Chapter ${ci + 1}`, items: [] });
+                        chapters.get(ci).items.push(item);
+                    });
+                    for (const [ci, group] of chapters) {
+                        const isCurrent = ci === state.chapterIndex;
+                        html += `<div class="nb-chapter-label">${group.title}${isCurrent ? ` <span style="opacity:0.4;font-weight:400">·</span> <span style="opacity:0.4;font-weight:400;font-size:0.6rem">${t('current')}</span>` : ''}</div>`;
+                        group.items.forEach(item => { html += this._renderNbItem(item); });
+                    }
+                }
+                content.innerHTML = html;
+            },
+            _renderNbItem(item) {
+                const colorMap = {yellow:'#FACC15',green:'#4ADE80',blue:'#60A5FA',pink:'#F472B6',gray:'#9CA3AF'};
+                const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${
+                    colorMap[item.color]||'#FACC15'
+                };margin-right:6px;vertical-align:middle;"></span>`;
+                const timeStr = item.createdAt ? new Date(item.createdAt).toLocaleString(state.language === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                const ci = item.chapterIndex ?? state.chapterIndex;
+                const isCurrent = ci === state.chapterIndex;
+                const chLabel = this._nbTimeSort && !isCurrent ? ` · ${item.chapterTitle || 'Ch.' + (ci+1)}` : '';
+                const onclick = isCurrent
+                    ? `Highlights._scrollTo(${item.paraIndex}); document.getElementById('notebook-panel').style.display='none';`
+                    : `window.location.href='/read/${state.bookId}/${ci}';`;
+                // Color pick dots
+                const colorPicks = Object.entries(colorMap).map(([c, hex]) =>
+                    `<span class="nb-color-pick${item.color === c ? ' active' : ''}" style="background:${hex}${item.color === c ? `;box-shadow:0 0 0 3px ${hex}40` : ''}" onclick="event.stopPropagation();Highlights.changeColor('${item.id}','${c}')"></span>`
+                ).join('');
+                return `<div class="nb-item${isCurrent ? '' : ' nb-item-other'}" data-nb-id="${item.id}" onclick="${onclick}">
+                    <div class="nb-text">${colorDot}"${item.text}"</div>
+                    ${item.note ? `<div class="nb-note">${item.note}</div>` : ''}
+                    <div class="nb-meta">${t('Paragraph')} ${item.paraIndex + 1}${chLabel}${timeStr ? ' · ' + timeStr : ''}</div>
+                    <div class="nb-item-actions">
+                        <div class="nb-item-colors">${colorPicks}</div>
+                        <div class="nb-action-btns">
+                            <button class="nb-action-btn" onclick="event.stopPropagation();Highlights._editInNotebook('${item.id}')" title="${t('Edit note')}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="nb-action-btn nb-delete-btn" onclick="event.stopPropagation();Highlights._deleteFromNotebook(this,'${item.id}')" title="${t('Delete')}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="nb-item-edit" id="nb-edit-${item.id}">
+                        <textarea id="nb-edit-text-${item.id}" placeholder="${t('Add a note...')}">${item.note || ''}</textarea>
+                        <div class="nb-edit-btns">
+                            <button class="nb-edit-btn" onclick="event.stopPropagation();Highlights._cancelEditInNotebook('${item.id}')">${t('Cancel')}</button>
+                            <button class="nb-edit-btn nb-save-btn" onclick="event.stopPropagation();Highlights._saveInNotebook('${item.id}')">${t('Save')}</button>
+                        </div>
+                    </div>
+                </div>`;
+            },
+            _filterNotebook() {
+                this.renderNotebook();
+            },
+            _toggleColorFilter(color) {
+                const dots = document.querySelectorAll('#notebook-panel .nb-color-dot');
+                if (this._nbColorFilter === color) {
+                    this._nbColorFilter = null;
+                    dots.forEach(d => d.classList.remove('active'));
+                } else {
+                    this._nbColorFilter = color;
+                    dots.forEach(d => d.classList.toggle('active', d.dataset.color === color));
+                }
+                this.renderNotebook();
+            },
+            _toggleTimeSort() {
+                this._nbTimeSort = !this._nbTimeSort;
+                document.getElementById('nb-sort-btn').classList.toggle('active', this._nbTimeSort);
+                this.renderNotebook();
             },
             _scrollTo(paraIndex) {
                 const paras = this._getParas();
@@ -1232,6 +2737,60 @@
                     paras[paraIndex].style.background = 'color-mix(in srgb, var(--primary) 12%, transparent)';
                     setTimeout(() => { paras[paraIndex].style.background = ''; }, 1500);
                 }
+            },
+            changeColor(id, newColor) {
+                const item = this._data.items.find(i => i.id === id);
+                if (!item || item.color === newColor) return;
+                item.color = newColor;
+                this.save();
+                // Update DOM highlight class in the content area
+                const span = document.querySelector(`[data-hl-id="${id}"]`);
+                if (span) {
+                    span.className = `hl-${newColor}`;
+                }
+                // Re-render the notebook panel to reflect the change
+                this.renderNotebook();
+            },
+            _editInNotebook(id) {
+                const editArea = document.getElementById(`nb-edit-${id}`);
+                if (!editArea) return;
+                const isVisible = editArea.classList.contains('visible');
+                // Close all other open edits first
+                document.querySelectorAll('#notebook-panel .nb-item-edit.visible').forEach(el => el.classList.remove('visible'));
+                if (!isVisible) {
+                    editArea.classList.add('visible');
+                    const textarea = document.getElementById(`nb-edit-text-${id}`);
+                    if (textarea) textarea.focus();
+                }
+            },
+            _saveInNotebook(id) {
+                const textarea = document.getElementById(`nb-edit-text-${id}`);
+                if (!textarea) return;
+                const noteText = textarea.value.trim();
+                this.updateNote(id, noteText);
+                this.renderNotebook();
+            },
+            _cancelEditInNotebook(id) {
+                const editArea = document.getElementById(`nb-edit-${id}`);
+                if (editArea) editArea.classList.remove('visible');
+            },
+            _deleteFromNotebook(btn, id) {
+                // Two-click confirm: first click shows confirm state, second click deletes
+                if (!btn.classList.contains('confirm-state')) {
+                    btn.classList.add('confirm-state');
+                    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg><span>${t('Confirm delete?')}</span>`;
+                    // Auto-reset after 3 seconds
+                    setTimeout(() => {
+                        if (btn.classList.contains('confirm-state')) {
+                            btn.classList.remove('confirm-state');
+                            btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>`;
+                        }
+                    }, 3000);
+                    return;
+                }
+                // Confirmed: delete the highlight
+                this.deleteHighlight(id);
+                this.renderNotebook();
             }
         };
 
@@ -1440,7 +2999,7 @@
             },
             async _doTranslate(text) {
                 const contentEl = document.getElementById('lookup-content');
-                contentEl.innerHTML = '<div class="lookup-loading">翻译中...</div>';
+                contentEl.innerHTML = '<div class="lookup-loading">' + t('Translating...') + '</div>';
                 this._showLookup();
                 try {
                     const resp = await fetch('/api/quick-translate', {
@@ -1449,7 +3008,7 @@
                     });
                     const data = await resp.json();
                     let html = '';
-                    const speakBtn = `<button onclick="Sel._speak('${text.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ')}')" style="background:none;border:none;cursor:pointer;padding:2px 4px;vertical-align:middle;opacity:0.5;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" title="发音"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>`;
+                    const speakBtn = `<button onclick="Sel._speak('${text.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ')}')" style="background:none;border:none;cursor:pointer;padding:2px 4px;vertical-align:middle;opacity:0.5;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" title="${t('Pronounce')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>`;
                     if (data.source === 'dict') {
                         // Dictionary card: word + phonetic + speak, then translation
                         html += `<div style="font-size:0.75rem;color:var(--secondary);margin-bottom:6px"><b>${data.word}</b>`;
@@ -1462,17 +3021,17 @@
                     }
                     if (html) {
                         const safeText = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ');
-                        html += `<div style="margin-top:8px;border-top:1px solid var(--outline);padding-top:6px"><button class="sel-btn" style="padding:3px 8px;font-size:0.65rem" onclick="AI.translate('${safeText}'); Sel.closeLookup()">问AI深度翻译</button></div>`;
+                        html += `<div style="margin-top:8px;border-top:1px solid var(--outline);padding-top:6px"><button class="sel-btn" style="padding:3px 8px;font-size:0.65rem" onclick="AI.translate('${safeText}'); Sel.closeLookup()">${t('Ask AI for deep translation')}</button></div>`;
                     }
-                    contentEl.innerHTML = html || '<div class="lookup-loading">无结果</div>';
+                    contentEl.innerHTML = html || '<div class="lookup-loading">' + t('No results') + '</div>';
                     this._showLookup();
                 } catch (e) {
-                    contentEl.innerHTML = '<div class="lookup-loading">翻译失败</div>';
+                    contentEl.innerHTML = '<div class="lookup-loading">' + t('Translation failed') + '</div>';
                 }
             },
             async _doLookup(text) {
                 const contentEl = document.getElementById('lookup-content');
-                contentEl.innerHTML = '<div class="lookup-loading">查询中...</div>';
+                contentEl.innerHTML = '<div class="lookup-loading">' + t('Looking up...') + '</div>';
                 this._showLookup();
                 try {
                     const resp = await fetch('/api/wiki-lookup', {
@@ -1484,13 +3043,13 @@
                     if (data.title) html += `<div class="lookup-translation">${data.title}</div>`;
                     if (data.extract) html += `<div class="lookup-explanation">${data.extract.length > 200 ? data.extract.substring(0, 200) + '...' : data.extract}</div>`;
                     if (data.url) html += `<div style="margin-top:4px"><a href="${data.url}" target="_blank" style="font-size:0.7rem;color:var(--primary);text-decoration:none">Wikipedia →</a></div>`;
-                    if (!data.title && !data.extract) html = `<div class="lookup-explanation" style="opacity:0.5">未找到百科条目</div>`;
+                    if (!data.title && !data.extract) html = `<div class="lookup-explanation" style="opacity:0.5">${t('No encyclopedia entry found')}</div>`;
                     const safeText = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ');
-                    html += `<div style="margin-top:8px;border-top:1px solid var(--outline);padding-top:6px"><button class="sel-btn" style="padding:3px 8px;font-size:0.65rem" onclick="AI.chat('请详细解释：${safeText}'); Sel.closeLookup()">问AI详细解释</button></div>`;
+                    html += `<div style="margin-top:8px;border-top:1px solid var(--outline);padding-top:6px"><button class="sel-btn" style="padding:3px 8px;font-size:0.65rem" onclick="AI.chat('Please explain in detail: ${safeText}'); Sel.closeLookup()">${t('Ask AI to explain')}</button></div>`;
                     contentEl.innerHTML = html;
                     this._showLookup(); // reposition after content change
                 } catch (e) {
-                    contentEl.innerHTML = '<div class="lookup-loading">查询失败</div>';
+                    contentEl.innerHTML = '<div class="lookup-loading">' + t('Lookup failed') + '</div>';
                 }
             },
             _showLookup() {
@@ -1523,11 +3082,294 @@
 
         window.toggleLeft = () => document.getElementById('sidebar').classList.toggle('collapsed');
         window.toggleRight = () => { document.getElementById('panels-container').classList.toggle('collapsed'); document.getElementById('toggle-right').classList.toggle('rotated'); };
-        function toggleSettings() { const p = document.getElementById('settings-panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; }
-        document.addEventListener('click', (e) => { const p = document.getElementById('settings-panel'); if (p.style.display === 'block' && !p.contains(e.target) && !document.getElementById('toggle-settings').contains(e.target)) p.style.display = 'none'; });
+        function _closeAllPanels(except) {
+            ['settings-panel', 'search-panel', 'notebook-panel'].forEach(id => {
+                if (id !== except) document.getElementById(id).style.display = 'none';
+            });
+        }
+        function toggleSettings() { _closeAllPanels('settings-panel'); const p = document.getElementById('settings-panel'); const show = p.style.display !== 'block'; p.style.display = show ? 'block' : 'none'; if (show) UX._initSegmentSlider(); }
+        function toggleSearch() {
+            _closeAllPanels('search-panel');
+            const p = document.getElementById('search-panel');
+            const show = p.style.display !== 'block';
+            p.style.display = show ? 'block' : 'none';
+            if (show) { document.getElementById('sp-input').value = ''; document.getElementById('sp-results').innerHTML = ''; document.getElementById('sp-info').textContent = ''; ContentSearch._initScopeSlider(); document.getElementById('sp-input').focus(); ContentSearch._clearHighlights(); }
+        }
+        function toggleNotebook() {
+            _closeAllPanels('notebook-panel');
+            const p = document.getElementById('notebook-panel');
+            const show = p.style.display !== 'block';
+            p.style.display = show ? 'block' : 'none';
+            if (show) {
+                Highlights._nbColorFilter = null;
+                Highlights._nbTimeSort = false;
+                const search = document.getElementById('nb-search');
+                if (search) search.value = '';
+                document.querySelectorAll('#notebook-panel .nb-color-dot').forEach(d => d.classList.remove('active'));
+                const sortBtn = document.getElementById('nb-sort-btn');
+                if (sortBtn) sortBtn.classList.remove('active');
+                Highlights.renderNotebook();
+            }
+        }
+        document.addEventListener('click', (e) => {
+            const grp = document.querySelector('.toggle-group');
+            const sp = document.getElementById('settings-panel');
+            if (sp.style.display === 'block' && !sp.contains(e.target) && !grp.contains(e.target)) sp.style.display = 'none';
+            const nb = document.getElementById('notebook-panel');
+            if (nb.style.display === 'block' && !nb.contains(e.target) && !grp.contains(e.target)) nb.style.display = 'none';
+            const srch = document.getElementById('search-panel');
+            if (srch.style.display === 'block' && !srch.contains(e.target) && !grp.contains(e.target)) { srch.style.display = 'none'; ContentSearch._clearHighlights(); }
+        });
         function findAndGo(f) { sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop); const spineMap = new Map([{% for ch in book.spine %}["{{ ch.href }}", {{ ch.order }}],{% endfor %}]); const idx = spineMap.get(f.split('#')[0]); if(idx !== undefined) window.location.href = `/read/${state.bookId}/${idx}`; }
 
+
+        const ContentSearch = {
+            _marks: [],
+            _scope: 'chapter', // 'page' | 'chapter' | 'book'
+            _placeholders: { page: 'Search in this page...', chapter: 'Search in this chapter...', book: 'Search in full book...' },
+            setScope(scope) {
+                this._scope = scope;
+                // Update tab active state
+                document.querySelectorAll('.sp-scope-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.scope === scope));
+                this._updateScopeSlider();
+                // Update placeholder
+                const input = document.getElementById('sp-input');
+                const phKey = this._placeholders[scope];
+                input.placeholder = t(phKey);
+                input.setAttribute('data-i18n-placeholder', phKey);
+                // Clear and re-search if there's a query
+                document.getElementById('sp-info').textContent = '';
+                document.getElementById('sp-results').innerHTML = '';
+                this._clearHighlights();
+                if (input.value.trim()) this.search();
+                input.focus();
+            },
+            _updateScopeSlider() {
+                const activeTab = document.querySelector(`.sp-scope-tab[data-scope="${this._scope}"]`);
+                const slider = document.getElementById('sp-scope-slider');
+                if (!activeTab || !slider) return;
+                slider.style.width = activeTab.offsetWidth + 'px';
+                slider.style.transform = `translateX(${activeTab.offsetLeft - 3}px)`;
+            },
+            _initScopeSlider() {
+                // Set initial slider position without animation
+                const slider = document.getElementById('sp-scope-slider');
+                if (slider) { slider.style.transition = 'none'; this._updateScopeSlider(); requestAnimationFrame(() => slider.style.transition = ''); }
+            },
+            search() {
+                if (this._scope === 'book') { this._searchBook(); return; }
+                const query = document.getElementById('sp-input').value.trim();
+                const info = document.getElementById('sp-info');
+                const results = document.getElementById('sp-results');
+                this._clearHighlights();
+                if (!query) { info.textContent = ''; results.innerHTML = ''; return; }
+
+                const allParas = document.querySelectorAll('#readable-content p');
+                let paras;
+                if (this._scope === 'page') {
+                    // Only visible paragraphs in the viewport
+                    const scrollEl = document.getElementById('main-scroll');
+                    const scrollRect = scrollEl.getBoundingClientRect();
+                    paras = [...allParas].filter(p => {
+                        const r = p.getBoundingClientRect();
+                        return r.bottom > scrollRect.top && r.top < scrollRect.bottom;
+                    });
+                } else {
+                    paras = [...allParas];
+                }
+                const matches = [];
+                const lowerQ = query.toLowerCase();
+
+                paras.forEach(p => {
+                    const globalIdx = [...allParas].indexOf(p);
+                    const text = p.textContent;
+                    const lower = text.toLowerCase();
+                    let pos = 0;
+                    while ((pos = lower.indexOf(lowerQ, pos)) !== -1) {
+                        const start = Math.max(0, pos - 30);
+                        const end = Math.min(text.length, pos + query.length + 30);
+                        let snippet = (start > 0 ? '...' : '') + text.slice(start, end) + (end < text.length ? '...' : '');
+                        const escapedQ = query.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]));
+                        snippet = snippet.replace(new RegExp(escapedQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => `<mark>${m}</mark>`);
+                        matches.push({ paraIndex: globalIdx, snippet, pos });
+                        pos += query.length;
+                    }
+                });
+
+                if (!matches.length) {
+                    info.textContent = '';
+                    results.innerHTML = `<div class="sp-empty">${t('No results found')}</div>`;
+                    return;
+                }
+
+                info.textContent = `${matches.length} ${t('results found')}`;
+                let html = '';
+                matches.forEach(m => {
+                    html += `<div class="sp-item" onclick="ContentSearch._goto(${m.paraIndex}, '${query.replace(/'/g, "\\'")}')">
+                        <div>${m.snippet}</div>
+                        <div class="sp-item-meta">${t('Paragraph')} ${m.paraIndex + 1}</div>
+                    </div>`;
+                });
+                results.innerHTML = html;
+            },
+            async _searchBook() {
+                const query = document.getElementById('sp-input').value.trim();
+                const info = document.getElementById('sp-info');
+                const results = document.getElementById('sp-results');
+                this._clearHighlights();
+                if (!query) { info.textContent = ''; results.innerHTML = ''; return; }
+
+                info.textContent = '';
+                results.innerHTML = `<div class="sp-loading">${t('Searching...')}</div>`;
+
+                try {
+                    const resp = await fetch('/api/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ book_id: state.bookId, query })
+                    });
+                    const data = await resp.json();
+                    const items = data.results || [];
+
+                    if (!items.length) {
+                        info.textContent = '';
+                        results.innerHTML = `<div class="sp-empty">${t('No results found')}</div>`;
+                        return;
+                    }
+
+                    info.textContent = `${items.length} ${t('results found')}`;
+                    const escapedQ = query.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]));
+                    const re = new RegExp(escapedQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                    let html = '';
+                    items.forEach(item => {
+                        const safeSnippet = item.snippet.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]));
+                        const highlighted = safeSnippet.replace(re, m => `<mark>${m}</mark>`);
+                        const isCurrent = item.chapterIndex === state.chapterIndex;
+                        const onclick = isCurrent
+                            ? `ContentSearch._gotoBookResult('${query.replace(/'/g, "\\'")}'); document.getElementById('search-panel').style.display='none';`
+                            : `window.location.href='/read/${state.bookId}/${item.chapterIndex}';`;
+                        html += `<div class="sp-item${isCurrent ? '' : ' sp-item-other'}" onclick="${onclick}">
+                            <div>${highlighted}</div>
+                            <div class="sp-item-meta">${item.chapterTitle}${isCurrent ? ' · <span style="color:var(--primary)">' + t('current') + '</span>' : ''}</div>
+                        </div>`;
+                    });
+                    results.innerHTML = html;
+                } catch(e) {
+                    results.innerHTML = `<div class="sp-empty">${t('No results found')}</div>`;
+                }
+            },
+            _gotoBookResult(query) {
+                // For current-chapter results in book search, find and highlight the first match
+                const paras = document.querySelectorAll('#readable-content p');
+                const lowerQ = query.toLowerCase();
+                for (let i = 0; i < paras.length; i++) {
+                    if (paras[i].textContent.toLowerCase().includes(lowerQ)) {
+                        this._goto(i, query);
+                        return;
+                    }
+                }
+            },
+            _goto(paraIndex, query) {
+                const paras = document.querySelectorAll('#readable-content p');
+                const p = paras[paraIndex];
+                if (!p) return;
+                document.getElementById('search-panel').style.display = 'none';
+                this._clearHighlights();
+                // Highlight all occurrences in target paragraph
+                this._highlightInPara(p, query);
+                p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                p.style.transition = 'background 0.3s';
+                p.style.background = 'color-mix(in srgb, var(--primary) 10%, transparent)';
+                setTimeout(() => { p.style.background = ''; this._clearHighlights(); }, 3000);
+            },
+            _highlightInPara(para, query) {
+                const walker = document.createTreeWalker(para, NodeFilter.SHOW_TEXT, {
+                    acceptNode(node) {
+                        return node.parentElement.closest('.p-play, .p-translate, .p-translation') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+                    }
+                });
+                const nodes = [];
+                while (walker.nextNode()) nodes.push(walker.currentNode);
+                const lowerQ = query.toLowerCase();
+                nodes.forEach(node => {
+                    const text = node.textContent;
+                    const lower = text.toLowerCase();
+                    const idx = lower.indexOf(lowerQ);
+                    if (idx === -1) return;
+                    const before = text.slice(0, idx);
+                    const match = text.slice(idx, idx + query.length);
+                    const after = text.slice(idx + query.length);
+                    const mark = document.createElement('mark');
+                    mark.textContent = match;
+                    mark.className = 'search-hl';
+                    mark.style.cssText = 'background:color-mix(in srgb,var(--primary) 25%,transparent);color:var(--primary);font-weight:700;border-radius:2px;padding:0 1px;';
+                    const parent = node.parentNode;
+                    if (after) parent.insertBefore(document.createTextNode(after), node.nextSibling);
+                    parent.insertBefore(mark, node.nextSibling);
+                    node.textContent = before;
+                    this._marks.push(mark);
+                });
+            },
+            _clearHighlights() {
+                this._marks.forEach(mark => {
+                    const parent = mark.parentNode;
+                    if (!parent) return;
+                    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                    parent.normalize();
+                });
+                this._marks = [];
+            }
+        };
+
+        const ChapterJump = {
+            _built: false,
+            show() {
+                const popup = document.getElementById('chapter-jump-popup');
+                if (popup.classList.contains('visible')) { this.hide(); return; }
+                // Build list once
+                if (!this._built) {
+                    const list = document.getElementById('chapter-jump-list');
+                    const titles = state.chapterTitles || {};
+                    let html = '';
+                    for (let i = 0; i < state.totalChapters; i++) {
+                        const title = titles[i] || `Chapter ${i + 1}`;
+                        const active = i === state.chapterIndex ? ' active' : '';
+                        html += `<div class="cj-item${active}" data-idx="${i}" onclick="ChapterJump.go(${i})"><span class="cj-num">${i + 1}</span><span class="cj-title">${title}</span></div>`;
+                    }
+                    list.innerHTML = html;
+                    this._built = true;
+                }
+                // Position above the indicator
+                const anchor = document.getElementById('chapter-indicator');
+                const rect = anchor.getBoundingClientRect();
+                popup.style.left = Math.max(12, rect.left + rect.width / 2 - 150) + 'px';
+                popup.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+                popup.style.top = 'auto';
+                popup.classList.add('visible');
+                // Scroll to current chapter
+                const activeItem = popup.querySelector('.cj-item.active');
+                if (activeItem) activeItem.scrollIntoView({ block: 'center' });
+                // Close on outside click
+                setTimeout(() => document.addEventListener('mousedown', this._outsideHandler), 0);
+            },
+            hide() {
+                document.getElementById('chapter-jump-popup').classList.remove('visible');
+                document.removeEventListener('mousedown', this._outsideHandler);
+            },
+            go(idx) {
+                if (idx === state.chapterIndex) { this.hide(); return; }
+                sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop);
+                window.location.href = `/read/${state.bookId}/${idx}`;
+            },
+            _outsideHandler(e) {
+                const popup = document.getElementById('chapter-jump-popup');
+                const indicator = document.getElementById('chapter-indicator');
+                if (!popup.contains(e.target) && !indicator.contains(e.target)) ChapterJump.hide();
+            }
+        };
+
         UX.init(); Audio.init(); Highlights.init(); Progress.init(); ReadingStats.init(); Sel.init();
+        AI._restoreChat();
 
         // Fix cover SVGs: ensure correct aspect ratio
         document.querySelectorAll('.book-content svg').forEach(svg => {
@@ -1540,9 +3382,112 @@
         const savedScroll = sessionStorage.getItem('sidebar_scroll');
         if (savedScroll) document.getElementById('sidebar').scrollTop = parseInt(savedScroll);
 
+        // --- Shared helpers for keyboard shortcuts ---
+        const _scrollContainer = document.getElementById('main-scroll');
+        const _contentEl = document.getElementById('readable-content');
+        function _getParas() {
+            return Array.from(_contentEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre'));
+        }
+        // Returns the paragraph closest to the visual center of the viewport
+        function _getCenterPara() {
+            const containerRect = _scrollContainer.getBoundingClientRect();
+            const centerY = containerRect.top + containerRect.height / 2;
+            let best = null, bestDist = Infinity;
+            for (const p of _getParas()) {
+                const r = p.getBoundingClientRect();
+                const mid = r.top + r.height / 2;
+                const d = Math.abs(mid - centerY);
+                if (d < bestDist) { bestDist = d; best = p; }
+            }
+            return best;
+        }
+
+        // Keyboard shortcuts (reading mode — ignored when typing in inputs)
+        document.addEventListener('keydown', (e) => {
+            // Skip if user is typing in an input/textarea/contenteditable
+            const el = document.activeElement;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+
+            // --- Font size: +/= (bigger), - (smaller), 0 (reset) ---
+            if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.code === 'Equal' || e.code === 'Minus' || e.code === 'Digit0')) {
+                e.preventDefault();
+                const slider = document.querySelector('.slider[oninput*="font-size"]');
+                const stored = localStorage.getItem('reader_font-size');
+                const current = stored ? parseFloat(stored) : 1.25;
+                const step = 0.05;
+                let next;
+                if (e.code === 'Equal') next = Math.min(2.2, current + step);
+                else if (e.code === 'Minus') next = Math.max(0.8, current - step);
+                else next = 1.25;
+                next = Math.round(next * 100) / 100;
+
+                // Anchor on scroll ratio: keep the same % position in the document
+                const scrollH = _scrollContainer.scrollHeight - _scrollContainer.clientHeight;
+                const ratio = scrollH > 0 ? _scrollContainer.scrollTop / scrollH : 0;
+
+                UX.updateTypography('font-size', next + 'rem');
+                if (slider) slider.value = next;
+
+                // Force reflow then restore ratio
+                const newScrollH = _scrollContainer.scrollHeight - _scrollContainer.clientHeight;
+                _scrollContainer.scrollTop = ratio * newScrollH;
+                return;
+            }
+
+            // --- Left/Right arrow: prev/next chapter ---
+            if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+                if (e.code === 'ArrowLeft') {
+                    const prevLink = document.querySelector('.nav-link[href*="/read/"]');
+                    if (prevLink && prevLink.textContent.trim() === 'PREVIOUS') {
+                        sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop);
+                        window.location.href = prevLink.href;
+                    }
+                    return;
+                }
+                if (e.code === 'ArrowRight') {
+                    const links = document.querySelectorAll('.nav-link[href*="/read/"]');
+                    const nextLink = Array.from(links).find(a => a.textContent.trim() === 'NEXT');
+                    if (nextLink) {
+                        sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop);
+                        window.location.href = nextLink.href;
+                    }
+                    return;
+                }
+
+                // --- Up/Down arrow: jump to prev/next paragraph ---
+                if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+                    e.preventDefault();
+                    const containerRect = _scrollContainer.getBoundingClientRect();
+                    const viewTop = containerRect.top;
+                    const paras = _getParas();
+                    if (!paras.length) return;
+
+                    if (e.code === 'ArrowDown') {
+                        // Find first paragraph whose top is below the viewport top + threshold
+                        const target = paras.find(p => p.getBoundingClientRect().top > viewTop + 60);
+                        if (target) {
+                            _scrollContainer.scrollBy({ top: target.getBoundingClientRect().top - viewTop - 20, behavior: 'smooth' });
+                        }
+                    } else {
+                        // Find last paragraph whose bottom is above the viewport top + threshold
+                        let target = null;
+                        for (let i = paras.length - 1; i >= 0; i--) {
+                            if (paras[i].getBoundingClientRect().top < viewTop - 10) {
+                                target = paras[i]; break;
+                            }
+                        }
+                        if (target) {
+                            _scrollContainer.scrollBy({ top: target.getBoundingClientRect().top - viewTop - 20, behavior: 'smooth' });
+                        }
+                    }
+                    return;
+                }
+            }
+        });
+
         // Wire chat input
         document.getElementById('ai-chat-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 const input = e.target;
                 const question = input.value.trim();

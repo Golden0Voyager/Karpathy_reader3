@@ -149,25 +149,44 @@ def _find_cover_image(book_id: str) -> str | None:
     images_dir = os.path.join(BOOKS_DIR, book_id, "images")
     if not os.path.isdir(images_dir):
         return None
-    # 1. Look for files named cover*
-    for f in os.listdir(images_dir):
-        if re.match(r'cover', f, re.I) and f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+
+    img_exts = ('.jpg', '.jpeg', '.png', '.gif', '.webp')
+    images = [f for f in os.listdir(images_dir) if f.lower().endswith(img_exts)]
+
+    # 1. Marker file left by process_epub (most reliable)
+    marker = os.path.join(BOOKS_DIR, book_id, "cover_image.txt")
+    if os.path.exists(marker):
+        fname = open(marker).read().strip()
+        path = os.path.join(images_dir, fname)
+        if os.path.exists(path):
+            return path
+
+    # 2. File named cover* (most explicit naming convention)
+    for f in images:
+        if re.match(r'cover', f, re.I):
             return os.path.join(images_dir, f)
-    # 2. Look for *_cover* pattern
-    for f in os.listdir(images_dir):
-        if 'cover' in f.lower() and f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+    # 3. File containing *cover* anywhere in name
+    for f in images:
+        if 'cover' in f.lower():
             return os.path.join(images_dir, f)
-    # 3. Parse first chapter HTML for image reference
+
+    # 4. Parse first chapter HTML for image reference (often the cover page)
     book = load_book_cached(book_id)
     if book and book.spine:
-        content = book.spine[0].content[:1000]
-        m = re.search(r'(?:src|href)=["\']([^"\']+\.(?:jpe?g|png|gif))', content, re.I)
+        content = book.spine[0].content[:2000]
+        m = re.search(r'(?:src|href)=["\']([^"\']+\.(?:jpe?g|png|gif|webp))', content, re.I)
         if m:
             src = m.group(1)
             fname = os.path.basename(src)
             path = os.path.join(images_dir, fname)
             if os.path.exists(path):
                 return path
+
+    # 5. Fallback: pick the largest image file (covers are usually the biggest)
+    if images:
+        largest = max(images, key=lambda f: os.path.getsize(os.path.join(images_dir, f)))
+        return os.path.join(images_dir, largest)
+
     return None
 
 
@@ -308,28 +327,26 @@ async def analyze_chapter(req: AIAnalyzeRequest):
     if cache_key in _analysis_cache:
         return _analysis_cache[cache_key]
 
-    prompt = f"""
-    你是一位精通文学分析与叙事学的资深教授。请对以下文本进行【多维深度解构】。
+    prompt = f"""你是一位经验丰富的读书会领读者，同时具备深厚的文学素养和跨学科知识。
+你正在带领一群认真的成年读者讨论这本书。你的风格：有见地但不卖弄，善于发现文字背后的深意。
 
-    书名：{book.metadata.title}
-    章节：{chapter.title}
+书名：{book.metadata.title}
+作者：{', '.join(book.metadata.authors) if book.metadata.authors else '未知'}
+章节：{chapter.title}
 
-    【待分析文本】：
-    {chapter_text[:15000]} 
+【本章内容】：
+{chapter_text[:15000]}
 
-    请严格按照以下 JSON 结构返回分析结果（禁止包含任何 Markdown 标记如 ```json）：
+请阅读后，以领读者的身份进行分析。严格按以下 JSON 返回（不要包含 ```json 标记）：
 
-    {{
-        "summary": "一段约200字的叙事学总结，分析本章的情绪曲线和叙事功能。",
-        "key_points": [
-            "关键冲突或伏笔1",
-            "关键冲突或伏笔2",
-            "..."
-        ],
-        "difficulties": "解析本章中的文化隐喻、复杂修辞或生僻词汇。",
-        "insight": "提供一个独特的视角，探讨本章背后的哲学命题或时代背景。"
-    }}
-    """
+{{
+    "summary": "用 150-250 字概述本章核心内容。不要罗列事件，而是说清楚：这一章到底在讲什么、推进了什么、改变了什么。如果是非虚构类，提炼核心论点和关键论据。",
+    "key_points": [
+        "提炼 3-5 个本章最值得关注的要点。每个要点用一句话点明是什么，再用一句话说明为什么重要。不要泛泛而谈。"
+    ],
+    "difficulties": "找出本章中读者可能卡住的地方：专业术语、文化背景、隐晦的表达、复杂的逻辑链等，用大白话解释清楚。如果没有难点就坦诚说明。",
+    "insight": "分享一个有启发性的深层解读：可以是与其他作品的对比、一个反直觉的发现、当下社会的映射、或者作者没有明说但暗含的立场。要言之有物，避免空洞的感悟。"
+}}"""
 
     try:
         # Use asyncio.to_thread to keep FastAPI loop responsive
@@ -355,12 +372,20 @@ async def translate_text(req: dict):
     if not text:
         return {"translation": ""}
 
-    prompt = f"""你是一位享誉国际的翻译家，追求“信、达、雅”。请将以下文本翻译成中文。
-    如果是小说，请保留叙事风格；如果是诗歌，请保留韵律；如果是专业文档，请确保术语准确。
-    只返回译文内容。
-    
-    原文：
-    {text}"""
+    # Auto-detect: if mostly CJK → translate to English, otherwise → translate to Chinese
+    cjk_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af')
+    target = "英文" if cjk_count > len(text) * 0.3 else "中文"
+
+    prompt = f"""请将以下文本翻译成{target}。
+
+翻译要求：
+- 准确传达原意，语句通顺自然，符合{target}的表达习惯
+- 专有名词（人名、地名、术语）首次出现时附注原文
+- 保留原文的语气和风格（正式/口语/文学/技术）
+- 只返回译文，不要解释
+
+原文：
+{text}"""
     
     try:
         response = await asyncio.to_thread(model.generate_content, prompt)
@@ -385,9 +410,13 @@ async def translate_text_stream(req: dict):
     else:
         target = "中文"
 
-    prompt = f"""你是一位享誉国际的翻译家，追求"信、达、雅"。请将以下文本翻译成{target}。
-如果是小说，请保留叙事风格；如果是诗歌，请保留韵律；如果是专业文档，请确保术语准确。
-只返回译文内容，不要任何解释。
+    prompt = f"""请将以下文本翻译成{target}。
+
+翻译要求：
+- 准确传达原意，语句通顺自然，符合{target}的表达习惯
+- 专有名词（人名、地名、术语）首次出现时附注原文
+- 保留原文的语气和风格（正式/口语/文学/技术）
+- 只返回译文，不要解释
 
 原文：
 {text}"""
@@ -445,6 +474,40 @@ async def wiki_lookup(req: dict):
     return result
 
 
+@app.post("/api/search")
+async def search_book(req: dict):
+    """Full-text search across all chapters of a book."""
+    book_id = (req.get("book_id") or "").strip()
+    query = (req.get("query") or "").strip()
+    if not book_id or not query:
+        return {"results": []}
+    book = load_book_cached(book_id)
+    if not book:
+        return {"results": []}
+    lower_q = query.lower()
+    results = []
+    for ch in book.spine:
+        text = ch.text or ""
+        lower_text = text.lower()
+        pos = 0
+        while (pos := lower_text.find(lower_q, pos)) != -1:
+            start = max(0, pos - 40)
+            end = min(len(text), pos + len(query) + 40)
+            snippet = ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
+            results.append({
+                "chapterIndex": ch.order,
+                "chapterTitle": ch.title,
+                "snippet": snippet,
+                "matchStart": pos,
+            })
+            pos += len(query)
+            if len(results) >= 200:
+                break
+        if len(results) >= 200:
+            break
+    return {"results": results}
+
+
 class AIChatRequest(BaseModel):
     book_id: str
     chapter_index: int
@@ -476,17 +539,20 @@ async def chat_about_chapter(req: AIChatRequest):
         s.feed(chapter.content)
         chapter_text = ' '.join(s.parts).strip()
 
-    prompt = f"""你是一位博学的阅读助手。基于以下书籍章节内容，回答用户的问题。
-如果问题与章节内容无关，也可以根据你的知识回答，但请注明这不在当前章节中。
-回答请简洁明了，使用与用户提问相同的语言。
+    prompt = f"""你是这本书的深度阅读伙伴。基于章节内容回答问题时：
+- 尽量引用原文中的具体段落或细节来支撑回答
+- 如果问题涉及更广的背景知识，可以拓展，但要标注哪些是原文内容、哪些是补充
+- 用与提问者相同的语言回答
+- 回答要有条理，必要时使用小标题分段
 
 书名：{book.metadata.title}
+作者：{', '.join(book.metadata.authors) if book.metadata.authors else '未知'}
 章节：{chapter.title}
 
 【章节内容】：
 {chapter_text[:12000]}
 
-【用户提问】：
+【读者提问】：
 {req.question}"""
 
     try:
@@ -507,11 +573,6 @@ async def stream_tts(text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str =
             if chunk["type"] == "audio":
                 yield chunk["data"]
     return StreamingResponse(generate(), media_type="audio/mpeg")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8123)
-
 
 # --- Apple Books Integration ---
 
@@ -602,6 +663,13 @@ async def import_local_epub(req: dict):
 
     book_obj = await asyncio.to_thread(process_epub, path, out_dir)
     await asyncio.to_thread(save_to_pickle, book_obj, out_dir)
+
+    # Keep a copy of the epub for future reprocessing
+    import shutil
+    epub_copy = os.path.join(out_dir, "source.epub")
+    if not os.path.exists(epub_copy):
+        shutil.copy2(path, epub_copy)
+
     load_book_cached.cache_clear()
 
     return {
@@ -609,6 +677,7 @@ async def import_local_epub(req: dict):
         "book_id": base_name + "_data",
         "title": book_obj.metadata.title,
         "chapters": len(book_obj.spine),
+        "has_cover": _find_cover_image(base_name + "_data") is not None,
     }
 
 
@@ -633,6 +702,10 @@ async def upload_epub(file: UploadFile = File(...)):
         book_obj = await asyncio.to_thread(process_epub, tmp_path, out_dir)
         await asyncio.to_thread(save_to_pickle, book_obj, out_dir)
 
+        # Keep a copy of the epub for future reprocessing
+        import shutil
+        shutil.copy2(tmp_path, os.path.join(out_dir, "source.epub"))
+
         # Clear LRU cache so new book appears
         load_book_cached.cache_clear()
 
@@ -641,8 +714,117 @@ async def upload_epub(file: UploadFile = File(...)):
             "book_id": base_name + "_data",
             "title": book_obj.metadata.title,
             "chapters": len(book_obj.spine),
+            "has_cover": _find_cover_image(base_name + "_data") is not None,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process EPUB: {str(e)}")
     finally:
         os.unlink(tmp_path)
+
+
+@app.post("/api/reprocess/{book_id}")
+async def reprocess_book(book_id: str):
+    """Reprocess a book from its saved source.epub."""
+    safe_id = os.path.basename(book_id)
+    book_dir = os.path.join(BOOKS_DIR, safe_id)
+    source_epub = os.path.join(book_dir, "source.epub")
+    if not os.path.exists(source_epub):
+        raise HTTPException(status_code=400, detail="No source epub found. Please re-upload the book.")
+
+    # Copy source.epub to temp so process_epub can rmtree the output dir
+    import shutil
+    tmp_epub = source_epub + ".tmp"
+    shutil.copy2(source_epub, tmp_epub)
+
+    try:
+        book_obj = await asyncio.to_thread(process_epub, tmp_epub, book_dir)
+        await asyncio.to_thread(save_to_pickle, book_obj, book_dir)
+        # Restore source.epub into the fresh output dir
+        shutil.copy2(tmp_epub, os.path.join(book_dir, "source.epub"))
+        load_book_cached.cache_clear()
+        return {"success": True, "title": book_obj.metadata.title}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reprocess failed: {str(e)}")
+    finally:
+        if os.path.exists(tmp_epub):
+            os.unlink(tmp_epub)
+
+
+@app.post("/api/search-cover/{book_id}")
+async def search_cover_online(book_id: str):
+    """Search for book cover online using Google Books API (free, no key needed)."""
+    safe_id = os.path.basename(book_id)
+    book = load_book_cached(safe_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    title = book.metadata.title
+    authors = ', '.join(book.metadata.authors) if book.metadata.authors else ''
+    query = f"{title} {authors}".strip()
+
+    import urllib.parse, urllib.request
+    url = f"https://www.googleapis.com/books/v1/volumes?q={urllib.parse.quote(query)}&maxResults=12"
+
+    try:
+        def _fetch():
+            req = urllib.request.Request(url, headers={"User-Agent": "Reader3/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                return json.loads(resp.read())
+        data = await asyncio.to_thread(_fetch)
+
+        covers = []
+        for item in data.get("items", []):
+            info = item.get("volumeInfo", {})
+            images = info.get("imageLinks", {})
+            # Prefer largest available
+            img_url = images.get("extraLarge") or images.get("large") or images.get("medium") or images.get("thumbnail")
+            if img_url:
+                # Google Books returns http, upgrade to https; remove edge=curl for higher res
+                img_url = img_url.replace("http://", "https://").replace("&edge=curl", "").replace("zoom=1", "zoom=2")
+                covers.append({
+                    "title": info.get("title", ""),
+                    "authors": info.get("authors", []),
+                    "image_url": img_url,
+                })
+        return {"covers": covers, "query": query}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cover search failed: {str(e)}")
+
+
+@app.post("/api/set-cover/{book_id}")
+async def set_cover_from_url(book_id: str, req: dict):
+    """Download an image URL and set it as the book cover."""
+    safe_id = os.path.basename(book_id)
+    images_dir = os.path.join(BOOKS_DIR, safe_id, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    image_url = req.get("image_url", "")
+    if not image_url:
+        raise HTTPException(status_code=400, detail="No image URL provided")
+
+    import urllib.request
+    try:
+        def _download():
+            req_obj = urllib.request.Request(image_url, headers={"User-Agent": "Reader3/1.0"})
+            with urllib.request.urlopen(req_obj, timeout=10) as resp:
+                return resp.read()
+        img_data = await asyncio.to_thread(_download)
+
+        # Save as cover.jpg
+        cover_path = os.path.join(images_dir, "cover.jpg")
+        with open(cover_path, "wb") as f:
+            f.write(img_data)
+
+        # Also write marker
+        marker_path = os.path.join(BOOKS_DIR, safe_id, "cover_image.txt")
+        with open(marker_path, "w") as f:
+            f.write("cover.jpg")
+
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download cover: {str(e)}")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8123)

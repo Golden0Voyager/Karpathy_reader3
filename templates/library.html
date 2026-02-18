@@ -65,6 +65,46 @@
         }
         .delete-bar-btn:hover { box-shadow: 0 4px 12px rgba(179,38,30,0.3); }
         .delete-bar-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+        .reprocess-btn {
+            padding: 8px 20px; border-radius: 20px; border: none;
+            background: var(--primary); color: white;
+            font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; margin-right: 8px;
+        }
+        .reprocess-btn:hover { box-shadow: 0 4px 12px rgba(103,80,164,0.3); }
+        .reprocess-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+        /* Cover search modal */
+        .cover-modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+            z-index: 9999; justify-content: center; align-items: center;
+        }
+        .cover-modal-overlay.active { display: flex; }
+        .cover-modal {
+            background: white; border-radius: 20px; padding: 28px 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2); max-width: 520px; width: 90%;
+        }
+        .cover-modal h3 { margin: 0 0 16px; font-size: 1rem; }
+        .cover-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+            margin-bottom: 16px;
+        }
+        .cover-option {
+            cursor: pointer; border-radius: 8px; overflow: hidden;
+            border: 3px solid transparent; transition: 0.2s; aspect-ratio: 2/3;
+        }
+        .cover-option:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .cover-option.selected { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+        .cover-option img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .cover-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .cover-modal-btn {
+            padding: 8px 20px; border-radius: 20px; border: none;
+            font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+        }
+        .cover-modal-btn.cancel { background: var(--surface-container); color: var(--on-surface); }
+        .cover-modal-btn.confirm { background: var(--primary); color: white; }
+        .cover-modal-btn.confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+        .cover-modal .loading { text-align: center; padding: 30px 0; color: var(--outline); font-size: 0.9rem; }
 
         .book-checkbox {
             display: none; position: absolute; top: 8px; right: 8px; z-index: 2;
@@ -323,7 +363,23 @@
     <!-- Delete bar -->
     <div class="delete-bar" id="delete-bar">
         <div class="delete-bar-info" id="delete-bar-info">0 books selected</div>
-        <button class="delete-bar-btn" id="delete-bar-btn" disabled onclick="deleteSelected()">Delete</button>
+        <div>
+            <button class="reprocess-btn" id="cover-search-btn" disabled onclick="searchCoverForSelected()">Find Cover</button>
+            <button class="reprocess-btn" id="reprocess-btn" disabled onclick="reprocessSelected()">Reprocess</button>
+            <button class="delete-bar-btn" id="delete-bar-btn" disabled onclick="deleteSelected()">Delete</button>
+        </div>
+    </div>
+
+    <!-- Cover search modal -->
+    <div class="cover-modal-overlay" id="cover-modal" onclick="if(event.target===this)closeCoverModal()">
+        <div class="cover-modal">
+            <h3 id="cover-modal-title">Select Cover</h3>
+            <div id="cover-modal-content"><div class="loading">Searching...</div></div>
+            <div class="cover-modal-actions">
+                <button class="cover-modal-btn cancel" onclick="closeCoverModal()">Skip</button>
+                <button class="cover-modal-btn confirm" id="cover-confirm-btn" disabled onclick="confirmCover()">Use This Cover</button>
+            </div>
+        </div>
     </div>
 
     <!-- Upload overlay -->
@@ -404,6 +460,8 @@
         bar.classList.toggle('visible', editMode && n > 0);
         document.getElementById('delete-bar-info').textContent = `${n} book${n !== 1 ? 's' : ''} selected`;
         document.getElementById('delete-bar-btn').disabled = n === 0;
+        document.getElementById('reprocess-btn').disabled = n === 0;
+        document.getElementById('cover-search-btn').disabled = n !== 1; // cover search only for single book
     }
 
     async function deleteSelected() {
@@ -424,6 +482,110 @@
             document.getElementById('delete-bar-btn').textContent = 'Delete';
             document.getElementById('delete-bar-btn').disabled = false;
         }
+    }
+
+    // --- Reprocess books ---
+    async function reprocessSelected() {
+        if (!deleteSet.size) return;
+        const ids = [...deleteSet];
+        const btn = document.getElementById('reprocess-btn');
+        btn.textContent = 'Processing...'; btn.disabled = true;
+        let ok = 0, fail = 0;
+        for (const id of ids) {
+            try {
+                const r = await fetch(`/api/reprocess/${encodeURIComponent(id)}`, { method: 'POST' });
+                if (r.ok) ok++; else fail++;
+            } catch { fail++; }
+        }
+        if (fail > 0) alert(`Reprocessed ${ok}, failed ${fail}. Books without source.epub need re-upload.`);
+        window.location.reload();
+    }
+
+    // --- Cover search ---
+    let _coverBookId = null, _selectedCoverUrl = null;
+    let _allCovers = [], _coverPage = 0;
+    const _coversPerPage = 3;
+
+    function searchCoverForSelected() {
+        if (deleteSet.size !== 1) return;
+        openCoverSearch([...deleteSet][0]);
+    }
+
+    async function openCoverSearch(bookId) {
+        _coverBookId = bookId;
+        _selectedCoverUrl = null;
+        _allCovers = [];
+        _coverPage = 0;
+        const modal = document.getElementById('cover-modal');
+        const content = document.getElementById('cover-modal-content');
+        const confirmBtn = document.getElementById('cover-confirm-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Use This Cover';
+        content.innerHTML = '<div class="loading">Searching for covers...</div>';
+        modal.classList.add('active');
+
+        try {
+            const r = await fetch(`/api/search-cover/${encodeURIComponent(_coverBookId)}`, { method: 'POST' });
+            if (!r.ok) throw new Error('Search failed');
+            const data = await r.json();
+            if (!data.covers || data.covers.length === 0) {
+                content.innerHTML = '<div class="loading">No covers found online.</div>';
+                return;
+            }
+            document.getElementById('cover-modal-title').textContent = `Select cover for "${data.query.split(' ').slice(0, 5).join(' ')}"`;
+            _allCovers = data.covers;
+            _coverPage = 0;
+            _renderCoverPage();
+        } catch (e) {
+            content.innerHTML = `<div class="loading">Error: ${e.message}</div>`;
+        }
+    }
+
+    function _renderCoverPage() {
+        const content = document.getElementById('cover-modal-content');
+        const start = _coverPage * _coversPerPage;
+        const slice = _allCovers.slice(start, start + _coversPerPage);
+        const hasMore = start + _coversPerPage < _allCovers.length;
+        content.innerHTML = '<div class="cover-grid">' + slice.map(c =>
+            `<div class="cover-option" onclick="selectCover(this, '${c.image_url.replace(/'/g, "\\'")}')">
+                <img src="${c.image_url}" alt="${c.title}" onerror="this.parentElement.style.display='none'">
+            </div>`
+        ).join('') + '</div>'
+        + (hasMore ? '<div style="text-align:center;margin-top:8px"><button class="cover-modal-btn cancel" onclick="_coverPage++;_renderCoverPage()" style="font-size:0.82rem">More covers</button></div>' : '');
+        // Reset selection since we're showing new options
+        _selectedCoverUrl = null;
+        document.getElementById('cover-confirm-btn').disabled = true;
+    }
+
+    function selectCover(el, url) {
+        document.querySelectorAll('.cover-option').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        _selectedCoverUrl = url;
+        document.getElementById('cover-confirm-btn').disabled = false;
+    }
+
+    async function confirmCover() {
+        if (!_coverBookId || !_selectedCoverUrl) return;
+        const btn = document.getElementById('cover-confirm-btn');
+        btn.textContent = 'Saving...'; btn.disabled = true;
+        try {
+            const r = await fetch(`/api/set-cover/${encodeURIComponent(_coverBookId)}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_url: _selectedCoverUrl })
+            });
+            if (!r.ok) throw new Error('Failed to save cover');
+            window.location.reload();
+        } catch (e) {
+            alert('Error: ' + e.message);
+            btn.textContent = 'Use This Cover'; btn.disabled = false;
+        }
+    }
+
+    function closeCoverModal() {
+        document.getElementById('cover-modal').classList.remove('active');
+        _coverBookId = null; _selectedCoverUrl = null;
+        // Reload to show newly imported books
+        window.location.reload();
     }
 
     // --- Import menu ---
@@ -447,7 +609,13 @@
             const r = await fetch('/api/upload', { method: 'POST', body: form });
             if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Failed'); }
             const d = await r.json(); s.textContent = `"${d.title}" imported!`; sp.style.display = 'none';
-            setTimeout(() => window.location.reload(), 600);
+            if (!d.has_cover) {
+                // No cover found — auto-search and let user pick
+                s.textContent = `"${d.title}" imported! Searching for cover...`;
+                setTimeout(() => { o.classList.remove('active'); openCoverSearch(d.book_id); }, 600);
+            } else {
+                setTimeout(() => window.location.reload(), 600);
+            }
         } catch (e) { sp.style.display = 'none'; s.textContent = 'Import failed'; err.textContent = e.message; err.style.display = 'block'; setTimeout(() => o.classList.remove('active'), 3000); }
     }
 

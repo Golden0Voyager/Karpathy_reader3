@@ -192,7 +192,7 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
     image_map = {} # Key: internal_path, Value: local_relative_path
 
     for item in book.get_items():
-        if item.get_type() == ebooklib.ITEM_IMAGE:
+        if item.get_type() in (ebooklib.ITEM_IMAGE, ebooklib.ITEM_COVER):
             # Normalize filename
             original_fname = os.path.basename(item.get_name())
             # Sanitize filename for OS
@@ -208,6 +208,34 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
             rel_path = f"images/{safe_fname}"
             image_map[item.get_name()] = rel_path
             image_map[original_fname] = rel_path
+
+    # 4b. Extract cover image from epub metadata and write marker file
+    cover_fname = None
+    try:
+        # Method A: OPF <meta name="cover" content="item-id">
+        cover_id = None
+        for meta in book.get_metadata('OPF', 'cover') or []:
+            if meta and meta[1] and 'content' in meta[1]:
+                cover_id = meta[1]['content']
+                break
+        if cover_id:
+            item = book.get_item_with_id(cover_id)
+            if item:
+                fname = os.path.basename(item.get_name())
+                cover_fname = "".join([c for c in fname if c.isalpha() or c.isdigit() or c in '._-']).strip()
+        # Method B: item with properties="cover-image" (EPUB3)
+        if not cover_fname:
+            for item in book.get_items():
+                if item.get_type() == ebooklib.ITEM_COVER:
+                    fname = os.path.basename(item.get_name())
+                    cover_fname = "".join([c for c in fname if c.isalpha() or c.isdigit() or c in '._-']).strip()
+                    break
+    except Exception:
+        pass
+    if cover_fname and os.path.exists(os.path.join(images_dir, cover_fname)):
+        with open(os.path.join(output_dir, "cover_image.txt"), "w") as f:
+            f.write(cover_fname)
+        print(f"Cover image: {cover_fname}")
 
     # 5. Process TOC
     print("Parsing Table of Contents...")
