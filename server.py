@@ -859,6 +859,10 @@ async def reprocess_book(book_id: str):
         # Restore source.epub into the fresh output dir
         shutil.copy2(tmp_epub, os.path.join(book_dir, "source.epub"))
         load_book_cached.cache_clear()
+        # Clear AI analysis cache for this book so stale results aren't served
+        stale_keys = [k for k in _analysis_cache if k.startswith(f"{safe_id}:")]
+        for k in stale_keys:
+            del _analysis_cache[k]
         return {"success": True, "title": book_obj.metadata.title}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Reprocess failed: {str(e)}")
