@@ -391,7 +391,7 @@
         #sidebar:not(.collapsed) ~ #notebook-panel { left: calc(var(--sidebar-width) + 70px); }
         #notebook-panel .nb-header {
             font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; color: var(--secondary);
-            margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; display: flex; justify-content: flex-end; align-items: center;
         }
         #notebook-panel .nb-count { font-weight: 400; opacity: 0.6; }
         #notebook-panel .nb-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
@@ -499,6 +499,37 @@
 
         /* Delete confirm state */
         .nb-action-btn.confirm-state { color: #EF4444; border-color: #EF4444; font-weight: 700; }
+
+        /* --- Notebook Tab Switch --- */
+        .nb-tabs { display: flex; gap: 0; margin-bottom: 14px; border-bottom: 1px solid var(--outline); }
+        .nb-tab {
+            flex: 1; padding: 8px 0; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+            color: var(--secondary); background: none; border: none; cursor: pointer;
+            border-bottom: 2px solid transparent; transition: all 0.2s; text-align: center;
+        }
+        .nb-tab:hover { color: var(--primary); }
+        .nb-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+
+        /* Bookmark item in notebook */
+        #notebook-panel .bm-item {
+            padding: 10px 12px; margin-bottom: 8px; border-radius: 10px; cursor: pointer;
+            background: color-mix(in srgb, var(--outline) 50%, transparent);
+            transition: background 0.15s; position: relative;
+        }
+        #notebook-panel .bm-item:hover { background: var(--outline); }
+        #notebook-panel .bm-text { font-size: 0.8rem; line-height: 1.5; color: var(--on-surface); }
+        #notebook-panel .bm-meta { font-size: 0.6rem; color: var(--secondary); margin-top: 4px; opacity: 0.6; }
+        #notebook-panel .bm-delete {
+            position: absolute; top: 8px; right: 8px; background: none; border: none;
+            color: var(--secondary); cursor: pointer; opacity: 0; transition: opacity 0.15s;
+            padding: 2px; border-radius: 4px;
+        }
+        #notebook-panel .bm-item:hover .bm-delete { opacity: 1; }
+        #notebook-panel .bm-delete:hover { color: #EF4444; }
+        #notebook-panel .bm-delete svg { width: 12px; height: 12px; }
+        #notebook-panel .bm-item-other { opacity: 0.7; }
+        #notebook-panel .bm-item-other:hover { opacity: 1; }
 
         #lang-toggle {
             position: absolute; top: 21px; right: 21px;
@@ -785,6 +816,7 @@
 
         /* --- Reading Stats Bar (Kindle-style) --- */
         #reading-stats {
+            position: relative;
             width: 100%; height: 30px; display: flex; align-items: center; justify-content: center;
             cursor: pointer; user-select: none; flex-shrink: 0;
             background: var(--surface);
@@ -801,6 +833,15 @@
         #reading-stats-dot { display: none; font-size: 0.5rem; color: var(--on-surface); opacity: 0.25; transition: opacity 0.3s ease; }
         #reading-stats.hidden #reading-stats-dot { display: inline; }
         #reading-stats.hidden:hover #reading-stats-dot { opacity: 0.6; }
+        #stats-bookmark {
+            position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+            display: flex; align-items: center; cursor: pointer;
+            opacity: 0.4; transition: opacity 0.3s;
+        }
+        #stats-bookmark:hover { opacity: 0.7; }
+        #stats-bookmark svg { width: 14px; height: 14px; fill: none; stroke: var(--on-surface); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        #stats-bookmark.bookmarked { opacity: 0.8; }
+        #stats-bookmark.bookmarked svg { fill: var(--primary); stroke: var(--primary); }
 
         /* --- Highlight Colors --- */
         .hl-yellow { background-color: rgba(250, 204, 21, 0.35); cursor: pointer; border-radius: 2px; }
@@ -927,6 +968,130 @@
         .cj-item.active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
         .cj-num { font-size: 0.68rem; opacity: 0.5; min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
         .cj-title { overflow: hidden; text-overflow: ellipsis; }
+        .mobile-overlay { display: none; }
+
+        /* ─── Mobile Responsive ─── */
+        @media (max-width: 768px) {
+            /* Sidebar: off-screen left drawer */
+            #sidebar {
+                position: fixed; top: 0; left: 0; width: 280px !important;
+                height: 100vh; height: 100dvh; z-index: 4000;
+                background: var(--surface); border-right: 1px solid var(--outline);
+                transform: translateX(-100%); transition: transform 0.3s var(--transition);
+                padding-top: 60px;
+            }
+            #sidebar.mobile-open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
+            #sidebar.collapsed { width: 280px !important; transform: translateX(-100%); }
+            #sidebar.collapsed.mobile-open { transform: translateX(0); }
+
+            /* Panels: off-screen right drawer */
+            #panels-container {
+                position: fixed; top: 0; right: 0; z-index: 4000;
+                width: 100vw !important; max-width: 400px;
+                height: 100vh; height: 100dvh;
+                background: var(--surface); border-left: 1px solid var(--outline);
+                transform: translateX(100%); transition: transform 0.3s var(--transition);
+            }
+            #panels-container.mobile-open { transform: translateX(0); box-shadow: -4px 0 24px rgba(0,0,0,0.15); }
+            #panels-container.collapsed { width: 100vw !important; max-width: 400px; transform: translateX(100%); }
+            #panels-container.collapsed.mobile-open { transform: translateX(0); }
+
+            /* Overlay backdrop */
+            .mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 3999; }
+            .mobile-overlay.visible { display: block; }
+
+            /* Hide resizers */
+            .resizer { display: none !important; }
+
+            /* Main: full viewport */
+            #main { width: 100vw; height: 100vh; height: 100dvh; }
+
+            /* Content area */
+            .content-container { padding: 60px 20px 20px; max-width: 100% !important; }
+
+            /* Chapter nav: always visible on mobile */
+            .chapter-nav { opacity: 1; pointer-events: auto; padding: 10px 20px; }
+
+            /* Toggle buttons: repositioned + enlarged for touch */
+            .toggle-group { left: 12px !important; top: 12px; }
+            #sidebar.collapsed ~ .toggle-group { left: 12px; }
+            #toggle-right { right: 12px !important; top: 12px; }
+            #panels-container.collapsed ~ #toggle-right { right: 12px; }
+            .toggle-btn { width: 40px; height: 40px; border-radius: 14px; }
+
+            /* Settings / Search / Notebook panels: centered */
+            #settings-panel, #search-panel, #notebook-panel {
+                left: 50% !important; transform: translateX(-50%);
+                width: calc(100vw - 32px) !important; max-width: 360px;
+                top: 60px; z-index: 4500;
+            }
+            #sidebar.collapsed ~ #settings-panel,
+            #sidebar:not(.collapsed) ~ #settings-panel,
+            #sidebar.collapsed ~ #search-panel,
+            #sidebar:not(.collapsed) ~ #search-panel,
+            #sidebar.collapsed ~ #notebook-panel,
+            #sidebar:not(.collapsed) ~ #notebook-panel { left: 50% !important; }
+
+            /* Popups: constrain to viewport */
+            #lookup-popup { max-width: calc(100vw - 32px); }
+            .note-tooltip { max-width: calc(100vw - 32px); }
+            #chapter-jump-popup { width: calc(100vw - 32px) !important; max-width: 340px; left: 50% !important; transform: translateX(-50%); }
+
+            /* Selection toolbar: wrap on narrow screens */
+            #selection-toolbar { max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center; }
+            .sel-btn { padding: 10px 12px; font-size: 0.82rem; min-height: 40px; }
+            .sel-color-dot { width: 28px; height: 28px; }
+            .sel-colors { gap: 6px; }
+
+            /* Paragraph action buttons */
+            .p-btn { width: 36px; height: 36px; border-radius: 10px; font-size: 0.75rem; }
+
+            /* Translation inline actions: always visible */
+            .trans-actions { opacity: 1; pointer-events: auto; }
+            .trans-actions button { width: 32px; height: 32px; }
+
+            /* Chat bubble actions: always visible */
+            .chat-bubble .bubble-actions { opacity: 0.6; pointer-events: auto; }
+
+            /* Notebook item actions: always visible */
+            #notebook-panel .nb-item-actions { opacity: 1; }
+            #notebook-panel .nb-color-dot { width: 24px; height: 24px; }
+            #notebook-panel .bm-delete { opacity: 0.6; }
+
+            /* Nav links: bigger touch targets */
+            .nav-link { padding: 10px 16px; }
+
+            /* Inputs: 16px to prevent iOS zoom */
+            #ai-chat-input, #search-panel .sp-input, #notebook-panel .nb-search { font-size: 16px; }
+
+            /* Sidebar TOC: bigger touch targets */
+            .ap-item { padding: 12px 24px !important; }
+
+            /* Session list */
+            .session-item { padding: 14px 24px; }
+            .session-del { opacity: 0.4; }
+
+            /* Safe area insets (notch / dynamic island) */
+            .toggle-group { top: calc(12px + env(safe-area-inset-top)); }
+            #toggle-right { top: calc(12px + env(safe-area-inset-top)); }
+            #sidebar { padding-top: calc(60px + env(safe-area-inset-top)); }
+            #reading-stats { padding-bottom: env(safe-area-inset-bottom); }
+            .chapter-nav { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+
+            /* Disable sticky hover effects */
+            .book-content p:hover { background: transparent; }
+            .toggle-btn:hover { transform: none; border-color: var(--outline); color: var(--secondary); }
+
+            /* Hide reading width slider (always full width on mobile) */
+            .setting-section:has([oninput*="content-max-width"]) { display: none; }
+        }
+
+        /* Landscape: narrower drawer */
+        @media (max-width: 768px) and (orientation: landscape) {
+            #panels-container { max-width: 50vw; }
+            .content-container { padding-top: 48px; }
+        }
+
     </style>
 </head>
 <body class="themed">
@@ -964,7 +1129,7 @@
             <span id="chapter-indicator" class="nav-link" style="font-variant-numeric: tabular-nums; cursor: pointer;" onclick="ChapterJump.show()">{{ chapter_index + 1 }} / {{ book.spine|length }}</span>
             {% if next_idx is not none %}<a href="/read/{{ book_id }}/{{ next_idx }}" onclick="sessionStorage.setItem('sidebar_scroll', document.getElementById('sidebar').scrollTop)" class="nav-link">NEXT</a>{% endif %}
         </div>
-        <div id="reading-stats" onclick="ReadingStats.cycle()"><span id="reading-stats-text"></span><span id="reading-stats-dot">&#9679;</span></div>
+        <div id="reading-stats"><span id="reading-stats-text" onclick="ReadingStats.cycle()"></span><span id="reading-stats-dot" onclick="ReadingStats.cycle()">&#9679;</span><span id="stats-bookmark" onclick="event.stopPropagation();Bookmarks.toggleAtCenter()"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span></div>
     </div>
 
     <div id="right-resizer" class="resizer"></div>
@@ -1021,6 +1186,7 @@
     </div>
     <div id="toggle-right" class="toggle-btn" onclick="window.toggleRight()"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
 
+
     <!-- Search Panel -->
     <div id="search-panel">
         <div class="sp-scope-tabs">
@@ -1050,8 +1216,13 @@
 
     <!-- Notebook Panel -->
     <div id="notebook-panel">
+        <div class="nb-tabs">
+            <button class="nb-tab active" data-tab="highlights" onclick="Bookmarks._switchTab('highlights')" data-i18n="Highlights & Notes">Highlights & Notes</button>
+            <button class="nb-tab" data-tab="bookmarks" onclick="Bookmarks._switchTab('bookmarks')" data-i18n="Bookmarks">Bookmarks</button>
+        </div>
+        <div id="nb-tab-highlights">
         <div class="nb-header">
-            <span data-i18n="Highlights & Notes">Highlights & Notes</span>
+            <span></span>
             <span class="nb-count" id="nb-count"></span>
         </div>
         <div class="nb-toolbar" id="nb-toolbar" style="display:none">
@@ -1072,6 +1243,10 @@
             </div>
         </div>
         <div id="nb-content"></div>
+        </div>
+        <div id="nb-tab-bookmarks" style="display:none">
+            <div id="bm-content"></div>
+        </div>
     </div>
 
     <!-- Note Tooltip -->
@@ -1106,6 +1281,7 @@
 
     <!-- Chapter Jump Popup -->
     <div id="chapter-jump-popup"><div id="chapter-jump-list"></div></div>
+    <div class="mobile-overlay" id="mobile-overlay"></div>
 
     <script>
         const root = document.documentElement;
@@ -1181,6 +1357,9 @@
             'Paragraph': '段落', 'Search highlights...': '搜索文字、笔记内容...',
             'Sort by time': '按时间排序', 'No matching highlights': '没有匹配的笔记',
             'Edit note': '编辑笔记', 'Confirm delete?': '确认删除？', 'Cancel': '取消',
+            // Bookmarks
+            'Bookmark': '书签', 'Bookmarks': '书签', 'No bookmarks yet': '暂无书签',
+            'Bookmark added': '已添加书签', 'Bookmark removed': '已移除书签',
             // Lookup
             'Looking up...': '查询中...', 'No results': '无结果', 'Lookup failed': '查询失败',
             'No encyclopedia entry found': '未找到百科条目',
@@ -1574,6 +1753,25 @@
                 container.addEventListener('mouseenter', () => {
                     container.classList.add('visible');
                 });
+
+                // Mobile: tap paragraph to toggle action buttons
+                if ('ontouchstart' in window) {
+                    content.addEventListener('click', (e) => {
+                        if (!_isMobile()) return;
+                        if (e.target.closest('.p-btn')) return; // let button clicks through
+                        const p = e.target.closest('.book-content p');
+                        if (p) {
+                            if (container._currentP === p && container.classList.contains('visible')) {
+                                container.classList.remove('visible');
+                                container._currentP = null;
+                            } else {
+                                positionBtns(p);
+                            }
+                        } else if (!container.contains(e.target)) {
+                            container.classList.remove('visible');
+                        }
+                    });
+                }
 
                 // Restore TTS setting
                 const ttsEnabled = localStorage.getItem('reader_tts') !== 'false';
@@ -2506,6 +2704,15 @@
                 });
                 track.style.cursor = 'pointer';
                 track.addEventListener('click', (e) => snapToNearest(e.clientX));
+                // Touch support for speed slider
+                thumb.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    thumb.classList.add('dragging');
+                    const onMove = (ev) => snapToNearest(ev.touches[0].clientX);
+                    const onEnd = () => { thumb.classList.remove('dragging'); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
+                    window.addEventListener('touchmove', onMove, { passive: false });
+                    window.addEventListener('touchend', onEnd);
+                }, { passive: false });
             },
             _updateSlider(idx) {
                 const pct = (idx / (this._speeds.length - 1)) * 100;
@@ -3151,6 +3358,154 @@
             }
         };
 
+        /* ========== Bookmarks Module — Persistent bookmarks ========== */
+        const Bookmarks = {
+            _key: `reader_bookmarks_${state.bookId}`,
+            _data: { items: [] },
+            _activeTab: 'highlights',
+            load() {
+                try {
+                    const raw = localStorage.getItem(this._key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && parsed.items) this._data = parsed;
+                    }
+                } catch(e) {}
+            },
+            save() {
+                localStorage.setItem(this._key, JSON.stringify(this._data));
+            },
+            add(chapterIndex, paraIndex, text) {
+                const id = `bm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+                const chapterTitle = state.chapterTitle || `Chapter ${chapterIndex + 1}`;
+                this._data.items.push({
+                    id, chapterIndex, chapterTitle, paraIndex,
+                    text: (text || '').slice(0, 50),
+                    createdAt: Date.now()
+                });
+                this.save();
+                return id;
+            },
+            remove(id) {
+                this._data.items = this._data.items.filter(i => i.id !== id);
+                this.save();
+            },
+            getAll() {
+                return this._data.items;
+            },
+            // Find bookmark at current chapter + paraIndex
+            findAt(chapterIndex, paraIndex) {
+                return this._data.items.find(i => i.chapterIndex === chapterIndex && i.paraIndex === paraIndex);
+            },
+            // Toggle bookmark at the center paragraph
+            toggleAtCenter() {
+                const para = _getCenterPara();
+                if (!para) return;
+                const paras = Array.from(document.querySelectorAll('#readable-content p, #readable-content h1, #readable-content h2, #readable-content h3, #readable-content h4, #readable-content h5, #readable-content h6, #readable-content li, #readable-content blockquote, #readable-content pre'));
+                const paraIndex = paras.indexOf(para);
+                if (paraIndex === -1) return;
+                const existing = this.findAt(state.chapterIndex, paraIndex);
+                const btn = document.getElementById('stats-bookmark');
+                if (existing) {
+                    this.remove(existing.id);
+                    btn.classList.remove('bookmarked');
+                    this._flash(btn, t('Bookmark removed'));
+                } else {
+                    const text = para.textContent.trim();
+                    this.add(state.chapterIndex, paraIndex, text);
+                    btn.classList.add('bookmarked');
+                    this._flash(btn, t('Bookmark added'));
+                }
+                this._updateBtnState();
+            },
+            // Add bookmark from selection toolbar
+            addFromSelection(paraIndex) {
+                const paras = document.querySelectorAll('#readable-content p');
+                const para = paras[paraIndex];
+                if (!para) return;
+                const text = para.textContent.trim();
+                this.add(state.chapterIndex, paraIndex, text);
+                this._updateBtnState();
+            },
+            _flash(el, msg) {
+                // Brief tooltip feedback
+                const tip = document.createElement('div');
+                tip.textContent = msg;
+                tip.style.cssText = `position:fixed;bottom:${window.innerHeight - el.getBoundingClientRect().top + 8}px;right:${window.innerWidth - el.getBoundingClientRect().right}px;background:var(--on-surface);color:var(--surface);padding:4px 10px;border-radius:6px;font-size:0.7rem;font-weight:600;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.2s;white-space:nowrap;`;
+                document.body.appendChild(tip);
+                requestAnimationFrame(() => { tip.style.opacity = '1'; });
+                setTimeout(() => { tip.style.opacity = '0'; setTimeout(() => tip.remove(), 200); }, 1200);
+            },
+            // Update the fixed bookmark button state based on center paragraph
+            _updateBtnState() {
+                const btn = document.getElementById('stats-bookmark');
+                if (!btn) return;
+                const para = _getCenterPara();
+                if (!para) { btn.classList.remove('bookmarked'); return; }
+                const paras = Array.from(document.querySelectorAll('#readable-content p, #readable-content h1, #readable-content h2, #readable-content h3, #readable-content h4, #readable-content h5, #readable-content h6, #readable-content li, #readable-content blockquote, #readable-content pre'));
+                const paraIndex = paras.indexOf(para);
+                const existing = paraIndex >= 0 && this.findAt(state.chapterIndex, paraIndex);
+                btn.classList.toggle('bookmarked', !!existing);
+            },
+            // Tab switching
+            _switchTab(tab) {
+                this._activeTab = tab;
+                document.querySelectorAll('.nb-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+                document.getElementById('nb-tab-highlights').style.display = tab === 'highlights' ? '' : 'none';
+                document.getElementById('nb-tab-bookmarks').style.display = tab === 'bookmarks' ? '' : 'none';
+                if (tab === 'bookmarks') this.renderList();
+            },
+            // Render bookmark list
+            renderList() {
+                const content = document.getElementById('bm-content');
+                const items = this._data.items;
+                if (!items.length) {
+                    content.innerHTML = `<div class="nb-empty">${t('No bookmarks yet')}</div>`;
+                    return;
+                }
+                // Group by chapter
+                const chapters = new Map();
+                items.forEach(item => {
+                    const ci = item.chapterIndex;
+                    if (!chapters.has(ci)) chapters.set(ci, { title: item.chapterTitle || `Chapter ${ci + 1}`, items: [] });
+                    chapters.get(ci).items.push(item);
+                });
+                let html = '';
+                for (const [ci, group] of chapters) {
+                    const isCurrent = ci === state.chapterIndex;
+                    html += `<div class="nb-chapter-label">${group.title}${isCurrent ? ` <span style="opacity:0.4;font-weight:400">·</span> <span style="opacity:0.4;font-weight:400;font-size:0.6rem">${t('current')}</span>` : ''}</div>`;
+                    group.items.forEach(item => {
+                        const onclick = isCurrent
+                            ? `Bookmarks._scrollTo(${item.paraIndex}); document.getElementById('notebook-panel').style.display='none';`
+                            : `window.location.href='/read/${state.bookId}/${ci}';`;
+                        const timeStr = item.createdAt ? new Date(item.createdAt).toLocaleString(state.language === 'zh' ? 'zh-CN' : 'en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                        html += `<div class="bm-item${isCurrent ? '' : ' bm-item-other'}" onclick="${onclick}">
+                            <div class="bm-text">🔖 ${item.text}</div>
+                            <div class="bm-meta">${t('Paragraph')} ${item.paraIndex + 1}${timeStr ? ' · ' + timeStr : ''}</div>
+                            <button class="bm-delete" onclick="event.stopPropagation();Bookmarks._deleteItem('${item.id}')" title="${t('Delete')}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>`;
+                    });
+                }
+                content.innerHTML = html;
+            },
+            _scrollTo(paraIndex) {
+                const paras = document.querySelectorAll('#readable-content p, #readable-content h1, #readable-content h2, #readable-content h3, #readable-content h4, #readable-content h5, #readable-content h6, #readable-content li, #readable-content blockquote, #readable-content pre');
+                if (paras[paraIndex]) {
+                    paras[paraIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    paras[paraIndex].style.transition = 'background 0.3s';
+                    paras[paraIndex].style.background = 'color-mix(in srgb, var(--primary) 12%, transparent)';
+                    setTimeout(() => { paras[paraIndex].style.background = ''; }, 1500);
+                }
+            },
+            _deleteItem(id) {
+                this.remove(id);
+                this.renderList();
+                this._updateBtnState();
+            }
+        };
+
         /* ========== Sel Module — Selection toolbar ========== */
         const Sel = {
             _selInfo: null,
@@ -3171,6 +3526,19 @@
                     if (e.target.closest('[data-hl-id]') && !window.getSelection().toString().trim()) return;
                     // Small delay to let browser finalize selection
                     setTimeout(() => this._checkSelection(main), 10);
+                });
+
+                // Mobile: selectionchange fires after user adjusts selection handles
+                let _selTimer = null;
+                document.addEventListener('selectionchange', () => {
+                    if (!_isMobile()) return;
+                    clearTimeout(_selTimer);
+                    _selTimer = setTimeout(() => {
+                        const sel = window.getSelection();
+                        if (!sel.toString().trim()) return;
+                        if (!content.contains(sel.anchorNode)) return;
+                        this._checkSelection(main);
+                    }, 300);
                 });
 
                 // Hide on mousedown outside toolbar and lookup
@@ -3437,20 +3805,70 @@
             }
         };
 
-        window.toggleLeft = () => document.getElementById('sidebar').classList.toggle('collapsed');
-        window.toggleRight = () => { document.getElementById('panels-container').classList.toggle('collapsed'); document.getElementById('toggle-right').classList.toggle('rotated'); };
+        const _isMobile = () => window.innerWidth <= 768;
+        const _overlay = document.getElementById('mobile-overlay');
+        _overlay.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            document.getElementById('panels-container').classList.remove('mobile-open');
+            _closeAllPanels();
+            _overlay.classList.remove('visible');
+        });
+        window.toggleLeft = () => {
+            if (_isMobile()) {
+                const sb = document.getElementById('sidebar');
+                document.getElementById('panels-container').classList.remove('mobile-open');
+                const opening = !sb.classList.contains('mobile-open');
+                sb.classList.toggle('mobile-open');
+                _overlay.classList.toggle('visible', opening);
+            } else {
+                document.getElementById('sidebar').classList.toggle('collapsed');
+            }
+        };
+        window.toggleRight = () => {
+            if (_isMobile()) {
+                const pc = document.getElementById('panels-container');
+                document.getElementById('sidebar').classList.remove('mobile-open');
+                const opening = !pc.classList.contains('mobile-open');
+                pc.classList.toggle('mobile-open');
+                _overlay.classList.toggle('visible', opening);
+            } else {
+                document.getElementById('panels-container').classList.toggle('collapsed');
+                document.getElementById('toggle-right').classList.toggle('rotated');
+            }
+        };
+        // Mobile: tap toggle-left to expand sub-buttons, tap again to toggle sidebar
+        if ('ontouchstart' in window) {
+            const _grp = document.querySelector('.toggle-group');
+            const _mainBtn = document.getElementById('toggle-left');
+            _mainBtn.addEventListener('click', (e) => {
+                if (!_isMobile()) return;
+                if (!_grp.classList.contains('expanded')) {
+                    e.stopPropagation();
+                    _grp.classList.add('expanded');
+                } else {
+                    _grp.classList.remove('expanded');
+                }
+            });
+            document.addEventListener('click', (e) => {
+                if (!_grp.contains(e.target)) _grp.classList.remove('expanded');
+            });
+        }
         function _closeAllPanels(except) {
             ['settings-panel', 'search-panel', 'notebook-panel'].forEach(id => {
                 if (id !== except) document.getElementById(id).style.display = 'none';
             });
+            if (!except && _isMobile()) _overlay.classList.remove('visible');
         }
-        function toggleSettings() { _closeAllPanels('settings-panel'); const p = document.getElementById('settings-panel'); const show = p.style.display !== 'block'; p.style.display = show ? 'block' : 'none'; if (show) UX._initSegmentSlider(); }
+        function _showPanelMobile() {
+            if (_isMobile()) _overlay.classList.add('visible');
+        }
+        function toggleSettings() { _closeAllPanels('settings-panel'); const p = document.getElementById('settings-panel'); const show = p.style.display !== 'block'; p.style.display = show ? 'block' : 'none'; if (show) { UX._initSegmentSlider(); _showPanelMobile(); } else if (_isMobile()) _overlay.classList.remove('visible'); }
         function toggleSearch() {
             _closeAllPanels('search-panel');
             const p = document.getElementById('search-panel');
             const show = p.style.display !== 'block';
             p.style.display = show ? 'block' : 'none';
-            if (show) { document.getElementById('sp-input').value = ''; document.getElementById('sp-results').innerHTML = ''; document.getElementById('sp-info').textContent = ''; ContentSearch._initScopeSlider(); document.getElementById('sp-input').focus(); ContentSearch._clearHighlights(); }
+            if (show) { document.getElementById('sp-input').value = ''; document.getElementById('sp-results').innerHTML = ''; document.getElementById('sp-info').textContent = ''; ContentSearch._initScopeSlider(); document.getElementById('sp-input').focus(); ContentSearch._clearHighlights(); _showPanelMobile(); } else if (_isMobile()) _overlay.classList.remove('visible');
         }
         function toggleNotebook() {
             _closeAllPanels('notebook-panel');
@@ -3458,6 +3876,7 @@
             const show = p.style.display !== 'block';
             p.style.display = show ? 'block' : 'none';
             if (show) {
+                Bookmarks._switchTab('highlights');
                 Highlights._nbColorFilter = null;
                 Highlights._nbTimeSort = false;
                 const search = document.getElementById('nb-search');
@@ -3466,7 +3885,8 @@
                 const sortBtn = document.getElementById('nb-sort-btn');
                 if (sortBtn) sortBtn.classList.remove('active');
                 Highlights.renderNotebook();
-            }
+                _showPanelMobile();
+            } else if (_isMobile()) _overlay.classList.remove('visible');
         }
         document.addEventListener('click', (e) => {
             const grp = document.querySelector('.toggle-group');
@@ -3774,6 +4194,21 @@
                     this._timer = setTimeout(() => this._reset(), 800);
                     if (this._accum >= this._threshold) this._go();
                 }, { passive: false });
+
+                // Touch: overscroll at bottom triggers next chapter
+                let _touchY = 0;
+                main.addEventListener('touchstart', (e) => { _touchY = e.touches[0].clientY; }, { passive: true });
+                main.addEventListener('touchmove', (e) => {
+                    if (!this._isAtBottom(main)) return;
+                    const dy = _touchY - e.touches[0].clientY;
+                    if (dy <= 0) { this._reset(); return; }
+                    this._accum = dy * 2;
+                    this._ringWrap.classList.add('visible');
+                    const pct = Math.min(1, this._accum / this._threshold);
+                    this._ring.style.strokeDashoffset = 113 * (1 - pct);
+                    if (this._accum >= this._threshold) this._go();
+                }, { passive: true });
+                main.addEventListener('touchend', () => this._reset(), { passive: true });
             },
 
             _isNearBottom(el) {
@@ -3796,7 +4231,18 @@
             }
         };
 
-        UX.init(); Audio.init(); Highlights.init(); Progress.init(); ReadingStats.init(); Sel.init(); AI._initFade(); MagneticNav.init();
+        // --- Shared helpers (must be before Bookmarks._updateBtnState) ---
+        const _scrollContainer = document.getElementById('main-scroll');
+        const _contentEl = document.getElementById('readable-content');
+
+        UX.init(); Audio.init(); Highlights.init(); Bookmarks.load(); Progress.init(); ReadingStats.init(); Sel.init(); AI._initFade(); MagneticNav.init();
+        // Update bookmark button state on scroll (debounced)
+        let _bmScrollTimer = null;
+        _scrollContainer.addEventListener('scroll', () => {
+            clearTimeout(_bmScrollTimer);
+            _bmScrollTimer = setTimeout(() => Bookmarks._updateBtnState(), 150);
+        }, { passive: true });
+        Bookmarks._updateBtnState();
         AI._restoreChat();
         AI.restoreTranslations();
 
@@ -3810,10 +4256,6 @@
         // Restore sidebar scroll position
         const savedScroll = sessionStorage.getItem('sidebar_scroll');
         if (savedScroll) document.getElementById('sidebar').scrollTop = parseInt(savedScroll);
-
-        // --- Shared helpers for keyboard shortcuts ---
-        const _scrollContainer = document.getElementById('main-scroll');
-        const _contentEl = document.getElementById('readable-content');
         function _getParas() {
             return Array.from(_contentEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre'));
         }
