@@ -412,12 +412,14 @@ async def analyze_chapter(req: AIAnalyzeRequest):
 }}"""
 
     try:
-        if _zhipu_client:
+        if model:
+            response = await asyncio.to_thread(model.generate_content, prompt)
+            text = response.text.strip()
+        elif _zhipu_client:
             text = await _zhipu_chat(prompt, temperature=0.3, max_tokens=8192)
             text = text.strip()
         else:
-            response = await asyncio.to_thread(model.generate_content, prompt)
-            text = response.text.strip()
+            raise HTTPException(status_code=500, detail="AI not configured")
 
         # Robust JSON cleaning
         if "{" in text and "}" in text:
