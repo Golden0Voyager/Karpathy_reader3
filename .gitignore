@@ -26,3 +26,11 @@ __pycache__/
 
 # AI config (contains API keys)
 ai_config.json
+
+# Package build artifacts
+package/*.pdf
+package/reader3-release/
+package/reader3-release.zip
+# Allow .env.example (overrides parent .env.* rule)
+!package/.env.example
+package/*.epub

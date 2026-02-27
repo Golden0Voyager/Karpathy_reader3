@@ -1,5 +1,5 @@
 #!/bin/bash
-# Reader3 一键安装 & 启动脚本 (macOS)
+# Reader3 一键安装脚本 (macOS / Linux)
 # 用法: bash setup.sh
 
 set -e
@@ -35,27 +35,21 @@ echo "📦 安装依赖包（首次可能需要几分钟）..."
 .venv/bin/python3 -m pip install -q --upgrade pip
 .venv/bin/python3 -m pip install -q -r requirements.txt
 
-# 4. 检查 .env 配置
+# 4. 配置 .env
 if [ ! -f ".env" ]; then
-    echo ""
-    echo "⚠️  未找到 .env 文件，需要配置 API Key"
-    echo "   请输入 Gemini API Key（回车跳过）:"
-    read -r gemini_key
-    echo "GEMINI_API_KEY=\"${gemini_key}\"" > .env
-    echo "✅ 已创建 .env"
+    cp .env.example .env
+    echo "✅ 已从模板创建 .env（可稍后编辑添加 API Key）"
 else
     echo "✅ .env 已存在"
 fi
 
-# 5. 检查词典
-if [ ! -f "dict/stardict.db" ] && [ -f "dict/ecdict.zip" ]; then
-    echo "📖 解压英文词典..."
-    cd dict && unzip -o ecdict.zip && cd ..
-fi
+# 5. 确保必要目录存在
+mkdir -p books dict
 
-if [ ! -f "dict/cn_dict.db" ] && [ -f "dict/build_cn_dict.py" ]; then
-    echo "📖 构建中文词典..."
-    .venv/bin/python3 dict/build_cn_dict.py
+# 6. 预处理示例图书（如有）
+if [ -f "books/dracula.epub" ] && [ ! -d "books/dracula_data" ]; then
+    echo "📖 导入示例图书 Dracula..."
+    .venv/bin/python3 reader3.py books/dracula.epub 2>/dev/null || true
 fi
 
 echo ""
@@ -65,4 +59,6 @@ echo "==============================="
 echo ""
 echo "启动方式: bash start.sh"
 echo "然后在浏览器打开: http://localhost:8000"
+echo ""
+echo "💡 提示: 词典可在应用「设置」中一键下载安装"
 echo ""
