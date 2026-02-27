@@ -10,7 +10,7 @@ from functools import lru_cache
 from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -621,7 +621,7 @@ async def serve_book_cover(book_id: str):
     safe_id = os.path.basename(book_id)
     cover = _find_cover_image(safe_id)
     if cover and os.path.exists(cover):
-        return FileResponse(cover)
+        return FileResponse(cover, headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="No cover found")
 
 @app.get("/read/{book_id}/{chapter_index}", response_class=HTMLResponse)
@@ -665,6 +665,10 @@ async def read_chapter(request: Request, book_id: str, chapter_index: str):
     # Fix SVG cover distortion: replace preserveAspectRatio="none" and width/height="100%"
     import re as _re
     content = current_chapter.content
+
+    # Normalize image paths: EPUB/images/x.jpg, OEBPS/Images/x.jpg, ../images/x.jpg → images/x.jpg
+    content = _re.sub(r'(?:(?:\.\.\/)*(?:EPUB|OEBPS|OPS)\/|(?:\.\.\/)+)[Ii]mages/', 'images/', content)
+
     if '<svg' in content:
         content = _re.sub(r'preserveaspectratio="none"', 'preserveAspectRatio="xMidYMid meet"', content, flags=_re.I)
         content = _re.sub(r'(<svg[^>]*)\s+width="100%"', r'\1', content, flags=_re.I)
@@ -1340,26 +1344,50 @@ async def list_apple_books():
 
     rows = await asyncio.to_thread(_query)
 
+    # Build a set of imported book titles (extracted from directory names) for fuzzy matching
+    imported_titles = set()
+    if os.path.isdir(BOOKS_DIR):
+        for d in os.listdir(BOOKS_DIR):
+            if d.endswith("_data") and os.path.exists(os.path.join(BOOKS_DIR, d, "book.pkl")):
+                # "失衡的免疫 - 【法】蒙蒂·莱曼_data" → "失衡的免疫"
+                name = d[:-5]  # strip "_data"
+                title_part = name.split(" - ")[0].strip()
+                imported_titles.add(title_part.lower())
+
+    def _normalize(s):
+        """Strip punctuation and whitespace for fuzzy title comparison."""
+        return _re.sub(r'[\s\W]+', '', s).lower()
+
+    imported_normalized = {_normalize(t): t for t in imported_titles}
+
+    def _is_imported(r):
+        # 1. Check by epub filename
+        base_name = os.path.splitext(os.path.basename(r['ZPATH']))[0]
+        if os.path.exists(os.path.join(BOOKS_DIR, base_name + "_data", "book.pkl")):
+            return True
+        # 2. Check by Apple Books title + author
+        title_name = _safe_dirname(r['ZTITLE'], [r['ZAUTHOR']] if r['ZAUTHOR'] else None)
+        if os.path.exists(os.path.join(BOOKS_DIR, title_name + "_data", "book.pkl")):
+            return True
+        # 3. Fuzzy: normalized prefix match or substring containment
+        ab_norm = _normalize(r['ZTITLE'])
+        for imp_norm in imported_normalized:
+            if (imp_norm.startswith(ab_norm[:6]) or ab_norm.startswith(imp_norm[:6])
+                    or (len(imp_norm) >= 4 and imp_norm in ab_norm)):
+                return True
+        return False
+
     books = []
     for r in rows:
         path = r['ZPATH']
         if not path or not os.path.exists(path):
             continue
-        base_name = os.path.splitext(os.path.basename(path))[0]
-        book_id = base_name + "_data"
-        already_imported = os.path.exists(os.path.join(BOOKS_DIR, book_id, "book.pkl"))
-        # Also check title-based directory (import renames to title - author)
-        if not already_imported:
-            title_name = _safe_dirname(r['ZTITLE'], [r['ZAUTHOR']] if r['ZAUTHOR'] else None)
-            title_id = title_name + "_data"
-            if title_id != book_id:
-                already_imported = os.path.exists(os.path.join(BOOKS_DIR, title_id, "book.pkl"))
         books.append({
             "title": r['ZTITLE'],
             "author": r['ZAUTHOR'] or '',
             "path": path,
             "size_mb": round((r['ZFILESIZE'] or 0) / 1048576, 1),
-            "imported": already_imported,
+            "imported": _is_imported(r),
             "asset_id": r['ZASSETID'] or '',
         })
     return {"books": books}
@@ -1524,44 +1552,108 @@ async def reprocess_book(book_id: str):
 
 
 @app.post("/api/search-cover/{book_id}")
-async def search_cover_online(book_id: str):
-    """Search for book cover online using Google Books API (free, no key needed)."""
+async def search_cover_online(book_id: str, req: dict = None):
+    """Search for book cover online using Google Books + Douban."""
     safe_id = os.path.basename(book_id)
     book = load_book_cached(safe_id)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
 
-    title = book.metadata.title
-    authors = ', '.join(book.metadata.authors) if book.metadata.authors else ''
-    query = f"{title} {authors}".strip()
+    # Allow custom query from user
+    custom_query = (req or {}).get("query", "").strip()
+
+    if custom_query:
+        query = custom_query
+    else:
+        title = book.metadata.title
+        authors = ', '.join(book.metadata.authors) if book.metadata.authors else ''
+        query = f"{title} {authors}".strip()
 
     import urllib.parse, urllib.request
-    url = f"https://www.googleapis.com/books/v1/volumes?q={urllib.parse.quote(query)}&maxResults=12"
 
+    # Detect if query is likely Chinese
+    has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in query)
+    douban_covers = []
+    google_covers = []
+
+    # --- Douban (better for Chinese books) ---
     try:
-        def _fetch():
-            req = urllib.request.Request(url, headers={"User-Agent": "Reader3/1.0"})
+        dquery = custom_query if custom_query else _re.sub(r'[\\/:*?"<>|]', '', book.metadata.title).strip()
+        durl = f"https://book.douban.com/j/subject_suggest?q={urllib.parse.quote(dquery)}"
+        def _fetch_douban():
+            req = urllib.request.Request(durl, headers={
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://book.douban.com/",
+            })
             with urllib.request.urlopen(req, timeout=8) as resp:
                 return json.loads(resp.read())
-        data = await asyncio.to_thread(_fetch)
+        items = await asyncio.to_thread(_fetch_douban)
+        for item in items[:6]:
+            pic = item.get("pic", "")
+            if pic:
+                img_url = pic.replace("/s/", "/l/")
+                douban_covers.append({
+                    "title": item.get("title", ""),
+                    "authors": [item["author_name"]] if item.get("author_name") else [],
+                    "image_url": img_url,
+                    "source": "douban",
+                })
+    except Exception:
+        pass
 
-        covers = []
+    # --- Google Books ---
+    try:
+        gurl = f"https://www.googleapis.com/books/v1/volumes?q={urllib.parse.quote(query)}&maxResults=12"
+        def _fetch_google():
+            req = urllib.request.Request(gurl, headers={"User-Agent": "Reader3/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                return json.loads(resp.read())
+        data = await asyncio.to_thread(_fetch_google)
         for item in data.get("items", []):
             info = item.get("volumeInfo", {})
             images = info.get("imageLinks", {})
-            # Prefer largest available
-            img_url = images.get("extraLarge") or images.get("large") or images.get("medium") or images.get("thumbnail")
+            # Prefer highest resolution available
+            img_url = (images.get("extraLarge") or images.get("large") or
+                       images.get("medium") or images.get("thumbnail"))
             if img_url:
-                # Google Books returns http, upgrade to https; remove edge=curl for higher res
-                img_url = img_url.replace("http://", "https://").replace("&edge=curl", "").replace("zoom=1", "zoom=2")
-                covers.append({
+                img_url = img_url.replace("http://", "https://").replace("&edge=curl", "")
+                # Request higher zoom level for better quality
+                img_url = _re.sub(r'zoom=\d', 'zoom=3', img_url)
+                google_covers.append({
                     "title": info.get("title", ""),
                     "authors": info.get("authors", []),
                     "image_url": img_url,
                 })
-        return {"covers": covers, "query": query}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cover search failed: {str(e)}")
+    except Exception:
+        pass
+
+    # CJK queries: Douban first; otherwise Google first
+    if has_cjk:
+        covers = douban_covers + google_covers
+    else:
+        covers = google_covers + douban_covers
+
+    return {"covers": covers, "query": query}
+
+
+@app.get("/api/proxy-image")
+async def proxy_image(url: str):
+    """Proxy external images that block direct browser access (e.g. Douban)."""
+    import urllib.request
+    if "doubanio.com" not in url and "douban.com" not in url:
+        raise HTTPException(status_code=400, detail="Only douban images supported")
+    def _fetch():
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://book.douban.com/",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.read(), resp.headers.get("Content-Type", "image/jpeg")
+    try:
+        data, ctype = await asyncio.to_thread(_fetch)
+        return Response(content=data, media_type=ctype)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to fetch image")
 
 
 @app.post("/api/set-cover/{book_id}")
@@ -1578,15 +1670,37 @@ async def set_cover_from_url(book_id: str, req: dict):
     import urllib.request
     try:
         def _download():
-            req_obj = urllib.request.Request(image_url, headers={"User-Agent": "Reader3/1.0"})
+            headers = {"User-Agent": "Mozilla/5.0"}
+            # Douban images require Referer header
+            if "doubanio.com" in image_url:
+                headers["Referer"] = "https://book.douban.com/"
+            req_obj = urllib.request.Request(image_url, headers=headers)
             with urllib.request.urlopen(req_obj, timeout=10) as resp:
                 return resp.read()
         img_data = await asyncio.to_thread(_download)
 
-        # Save as cover.jpg
+        # Auto-trim white borders
+        from PIL import Image, ImageChops
+        import io
+        def _trim_and_save():
+            img = Image.open(io.BytesIO(img_data)).convert("RGB")
+            # Create a white background image, diff to find content area
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            diff = ImageChops.difference(img, bg)
+            # Tolerance: treat near-white (>240) as white
+            thresh = diff.point(lambda x: 0 if x < 15 else 255)
+            bbox = thresh.getbbox()
+            if bbox:
+                # Only trim if it removes meaningful border (>2% per side)
+                w, h = img.size
+                margin = 0.02
+                if (bbox[0] > w * margin or bbox[1] > h * margin
+                        or bbox[2] < w * (1 - margin) or bbox[3] < h * (1 - margin)):
+                    img = img.crop(bbox)
+            img.save(cover_path, "JPEG", quality=92)
+
         cover_path = os.path.join(images_dir, "cover.jpg")
-        with open(cover_path, "wb") as f:
-            f.write(img_data)
+        await asyncio.to_thread(_trim_and_save)
 
         # Also write marker
         marker_path = os.path.join(BOOKS_DIR, safe_id, "cover_image.txt")

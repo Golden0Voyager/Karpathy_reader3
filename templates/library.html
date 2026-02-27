@@ -85,6 +85,18 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.2); max-width: 520px; width: 90%;
         }
         .cover-modal h3 { margin: 0 0 16px; font-size: 1rem; }
+        .cover-search-bar {
+            display: flex; gap: 8px; margin-bottom: 14px;
+        }
+        .cover-search-bar input {
+            flex: 1; padding: 6px 12px; border: 1.5px solid var(--outline-variant, #ccc);
+            border-radius: 8px; font-size: 0.85rem; outline: none;
+        }
+        .cover-search-bar input:focus { border-color: var(--primary); }
+        .cover-search-bar button {
+            padding: 6px 14px; border: none; border-radius: 8px;
+            background: var(--primary); color: white; font-size: 0.82rem; cursor: pointer;
+        }
         .cover-grid {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
             margin-bottom: 16px;
@@ -374,6 +386,10 @@
     <div class="cover-modal-overlay" id="cover-modal" onclick="if(event.target===this)closeCoverModal()">
         <div class="cover-modal">
             <h3 id="cover-modal-title">Select Cover</h3>
+            <div class="cover-search-bar">
+                <input type="text" id="cover-search-input" placeholder="修改搜索关键词..." onkeydown="if(event.key==='Enter')searchCoverByQuery()">
+                <button onclick="searchCoverByQuery()">搜索</button>
+            </div>
             <div id="cover-modal-content"><div class="loading">Searching...</div></div>
             <div class="cover-modal-actions">
                 <button class="cover-modal-btn cancel" onclick="closeCoverModal()">Skip</button>
@@ -504,14 +520,14 @@
     // --- Cover search ---
     let _coverBookId = null, _selectedCoverUrl = null;
     let _allCovers = [], _coverPage = 0;
-    const _coversPerPage = 3;
+    const _coversPerPage = 6;
 
     function searchCoverForSelected() {
         if (deleteSet.size !== 1) return;
         openCoverSearch([...deleteSet][0]);
     }
 
-    async function openCoverSearch(bookId) {
+    async function openCoverSearch(bookId, customQuery) {
         _coverBookId = bookId;
         _selectedCoverUrl = null;
         _allCovers = [];
@@ -519,20 +535,28 @@
         const modal = document.getElementById('cover-modal');
         const content = document.getElementById('cover-modal-content');
         const confirmBtn = document.getElementById('cover-confirm-btn');
+        const searchInput = document.getElementById('cover-search-input');
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Use This Cover';
         content.innerHTML = '<div class="loading">Searching for covers...</div>';
         modal.classList.add('active');
 
         try {
-            const r = await fetch(`/api/search-cover/${encodeURIComponent(_coverBookId)}`, { method: 'POST' });
+            const body = customQuery ? { query: customQuery } : {};
+            const r = await fetch(`/api/search-cover/${encodeURIComponent(_coverBookId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
             if (!r.ok) throw new Error('Search failed');
             const data = await r.json();
+            // Set search input to current query so user can edit
+            if (!customQuery) searchInput.value = data.query;
             if (!data.covers || data.covers.length === 0) {
-                content.innerHTML = '<div class="loading">No covers found online.</div>';
+                content.innerHTML = '<div class="loading">No covers found. Try different keywords.</div>';
                 return;
             }
-            document.getElementById('cover-modal-title').textContent = `Select cover for "${data.query.split(' ').slice(0, 5).join(' ')}"`;
+            document.getElementById('cover-modal-title').textContent = `Select cover`;
             _allCovers = data.covers;
             _coverPage = 0;
             _renderCoverPage();
@@ -541,16 +565,25 @@
         }
     }
 
+    function searchCoverByQuery() {
+        const q = document.getElementById('cover-search-input').value.trim();
+        if (q && _coverBookId) openCoverSearch(_coverBookId, q);
+    }
+
     function _renderCoverPage() {
         const content = document.getElementById('cover-modal-content');
         const start = _coverPage * _coversPerPage;
         const slice = _allCovers.slice(start, start + _coversPerPage);
         const hasMore = start + _coversPerPage < _allCovers.length;
-        content.innerHTML = '<div class="cover-grid">' + slice.map(c =>
-            `<div class="cover-option" onclick="selectCover(this, '${c.image_url.replace(/'/g, "\\'")}')">
-                <img src="${c.image_url}" alt="${c.title}" onerror="this.parentElement.style.display='none'">
-            </div>`
-        ).join('') + '</div>'
+        content.innerHTML = '<div class="cover-grid">' + slice.map(c => {
+            // Douban images need server proxy (anti-hotlinking)
+            const displayUrl = c.image_url.includes('doubanio.com')
+                ? `/api/proxy-image?url=${encodeURIComponent(c.image_url)}`
+                : c.image_url;
+            return `<div class="cover-option" onclick="selectCover(this, '${c.image_url.replace(/'/g, "\\'")}')">
+                <img src="${displayUrl}" alt="${c.title}" onerror="this.parentElement.style.display='none'">
+            </div>`;
+        }).join('') + '</div>'
         + (hasMore ? '<div style="text-align:center;margin-top:8px"><button class="cover-modal-btn cancel" onclick="_coverPage++;_renderCoverPage()" style="font-size:0.82rem">More covers</button></div>' : '');
         // Reset selection since we're showing new options
         _selectedCoverUrl = null;
