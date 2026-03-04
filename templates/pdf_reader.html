@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%238B5CF6'/><stop offset='100%' stop-color='%236D28D9'/></linearGradient></defs><rect width='100' height='100' rx='20' fill='url(%23g)'/><path d='M50 25 C50 25 30 28 22 32 L22 72 C30 68 50 65 50 65 C50 65 70 68 78 72 L78 32 C70 28 50 25 50 25Z' fill='none' stroke='white' stroke-width='3' stroke-linejoin='round'/><line x1='50' y1='25' x2='50' y2='65' stroke='white' stroke-width='2.5'/></svg>">
+    <title>{{ title }} — Reader 3</title>
+    <style>
+        /* --- 1. Global Vars & Themes (matching EPUB reader) --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #8B5CF6; --secondary: #64748B; --surface: #F8FAFC; --on-surface: #0F172A; --outline: #E2E8F0;
+            --transition: cubic-bezier(0.4, 0, 0.2, 1);
+            --panels-width: 340px;
+        }
+        [data-theme="ocean"]  { --primary: #0EA5E9; --surface: #F0F7FF; --outline: #BAE6FD; --on-surface: #075985; }
+        [data-theme="forest"] { --primary: #10B981; --surface: #F0FDF4; --outline: #BBF7D0; --on-surface: #065F46; }
+        [data-theme="sepia"]  { --primary: #B45309; --surface: #FEFBE8; --outline: #FEF08A; --on-surface: #78350F; }
+        [data-theme="dark"]   { --primary: #BB86FC; --secondary: #94A3B8; --surface: #0F172A; --outline: #2D3748; --on-surface: #F1F5F9; }
+        [data-theme="slate"]  { --primary: #6366F1; --surface: #F8FAFC; --outline: #C7D2FE; --on-surface: #1E1B4B; }
+
+        body {
+            font-family: -apple-system, Inter, system-ui, sans-serif;
+            background: var(--surface); color: var(--on-surface);
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden; height: 100vh;
+            display: flex;
+            transition: background 0.4s var(--transition), color 0.4s var(--transition);
+        }
+
+        /* --- 2. PDF Viewer (main area) --- */
+        #pdf-viewer {
+            flex: 1; height: 100vh;
+            overflow-y: auto; overflow-x: hidden;
+            padding: 80px 0 40px;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px;
+            background: #ffffff;
+            transition: background 0.4s var(--transition);
+        }
+        [data-theme="sepia"] #pdf-viewer { background: #FCF6E5; }
+        [data-theme="dark"] #pdf-viewer { background: #1A1A1C; }
+
+        .pdf-page-container {
+            position: relative;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            background: white;
+            overflow: clip;
+            border-radius: 2px;
+        }
+        [data-theme="dark"] .pdf-page-container { box-shadow: 0 2px 16px rgba(0,0,0,0.4); }
+        .pdf-page-container canvas { display: block; }
+
+        /* PDF.js text layer */
+        .textLayer {
+            position: absolute; inset: 0; overflow: clip;
+            opacity: 1; line-height: 1;
+            text-size-adjust: none; forced-color-adjust: none;
+            transform-origin: 0 0; z-index: 2;
+            pointer-events: none;
+        }
+        .textLayer :is(span, br) {
+            color: transparent; position: absolute; white-space: pre;
+            cursor: text; transform-origin: 0% 0%; pointer-events: auto;
+        }
+        .textLayer span:empty { pointer-events: none; }
+        .textLayer ::selection { background: color-mix(in srgb, var(--primary) 40%, transparent); }
+
+        /* Loading indicator */
+        .page-loading {
+            display: flex; justify-content: center; align-items: center;
+            color: var(--secondary); font-size: 0.85rem; min-height: 400px; opacity: 0.5;
+        }
+
+        /* Ghost Scrollbars */
+        #pdf-viewer, .ai-content { scrollbar-width: none; -ms-overflow-style: none; }
+        #pdf-viewer::-webkit-scrollbar, .ai-content::-webkit-scrollbar { width: 3px; background: transparent; }
+        #pdf-viewer::-webkit-scrollbar-thumb, .ai-content::-webkit-scrollbar-thumb { background: transparent; border-radius: 10px; transition: 0.3s; }
+        #pdf-viewer:hover::-webkit-scrollbar-thumb, .ai-content:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); }
+
+        /* --- 3. Satellite Controls (matching EPUB reader) --- */
+        .toggle-btn {
+            position: fixed; width: 30px; height: 30px;
+            background: color-mix(in srgb, var(--surface) 95%, transparent); backdrop-filter: blur(12px);
+            border: 1.2px solid var(--outline); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 2000; color: var(--secondary);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+            transition: all 0.3s var(--transition), border-color 0.2s;
+        }
+        .toggle-btn:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
+        .toggle-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* Left button group */
+        .toggle-group {
+            position: fixed; top: 24px; left: 24px;
+            z-index: 2000; display: flex; flex-direction: column; align-items: center; gap: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .toggle-group .toggle-btn { position: static; }
+        .toggle-group .toggle-sub {
+            opacity: 0; transform: scale(0.6) translateY(-12px); pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), margin-top 0.2s ease, max-height 0.2s ease;
+            margin-top: 0; max-height: 0; overflow: hidden; transition-delay: 0s;
+        }
+        .toggle-group:hover .toggle-sub,
+        .toggle-group.expanded .toggle-sub {
+            opacity: 1; transform: scale(1) translateY(0); pointer-events: auto;
+            max-height: 50px; margin-top: 24px; overflow: visible;
+        }
+        .toggle-group:hover .toggle-sub:nth-child(2),
+        .toggle-group.expanded .toggle-sub:nth-child(2) { transition-delay: 0.03s; }
+        .toggle-group:hover .toggle-sub:nth-child(3),
+        .toggle-group.expanded .toggle-sub:nth-child(3) { transition-delay: 0.09s; }
+        .toggle-group .toggle-sub:nth-child(2) { transition-delay: 0.03s; }
+        .toggle-group .toggle-sub:nth-child(3) { transition-delay: 0s; }
+
+        /* Right toggle (AI panel) */
+        #toggle-right { position: fixed; top: 24px; right: calc(var(--panels-width) + 24px); transition: transform 0.3s ease, right 0.3s var(--transition); }
+        #panels-container.collapsed ~ #toggle-right { right: 24px; }
+        .rotated { transform: rotate(180deg); }
+        #toggle-right:hover { transform: translateY(-1px) rotate(180deg); }
+        #toggle-right.rotated:hover { transform: translateY(-1px) rotate(0deg); }
+
+        /* Page indicator (floating) */
+        .page-indicator {
+            position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 1900;
+            font-size: 0.75rem; font-weight: 600; color: var(--secondary);
+            background: color-mix(in srgb, var(--surface) 95%, transparent); backdrop-filter: blur(12px);
+            border: 1.2px solid var(--outline); border-radius: 10px;
+            padding: 4px 14px; white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Auto-hide controls on scroll */
+        .toggle-group.auto-hidden, #toggle-right.auto-hidden, .page-indicator.auto-hidden {
+            opacity: 0; transform: translateY(-20px); pointer-events: none;
+        }
+        #toggle-right.rotated.auto-hidden { transform: translateY(-20px) rotate(180deg); }
+        .page-indicator.auto-hidden { transform: translateX(-50%) translateY(-20px); }
+
+        /* --- 4. AI Panel (matching EPUB reader) --- */
+        #panels-container {
+            width: var(--panels-width); min-width: 0;
+            background: rgba(0,0,0,0.015); border-left: 1px solid var(--outline);
+            display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+            transition: width 0.3s var(--transition); position: relative;
+        }
+        #panels-container.collapsed { width: 0 !important; border-left: none; }
+        [data-theme="sepia"] #panels-container { background: rgba(180, 140, 60, 0.06); }
+
+        /* AI brand header */
+        .ai-brand { display: flex; align-items: baseline; gap: 6px; }
+        .ai-brand .panel-title { font-size: 1rem; font-weight: 800; letter-spacing: 0.1em; color: var(--on-surface); }
+        .ai-brand .panel-subtitle { font-size: 0.75rem; font-weight: 600; color: var(--on-surface); opacity: 0.75; margin-left: 4px; letter-spacing: 0.15em; }
+
+        .ai-content { flex: 1; overflow-y: auto; padding: 16px 24px; }
+
+        /* Chat bubbles (matching EPUB reader) */
+        @keyframes bubbleIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .chat-bubble {
+            margin-bottom: 0; padding: 18px 18px; border-radius: 15px;
+            font-size: 0.78rem; line-height: 1.7; position: relative;
+            margin-top: 20px; animation: bubbleIn 0.35s ease-out;
+            transition: box-shadow 0.25s ease, transform 0.25s ease;
+            word-break: break-word; white-space: pre-wrap;
+        }
+        .chat-bubble:first-child { margin-top: 0; }
+        .chat-bubble.user {
+            background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, var(--surface)), color-mix(in srgb, var(--primary) 78%, var(--surface)));
+            color: white; margin-left: 60px; border-bottom-right-radius: 2px;
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 15%, transparent);
+        }
+        .chat-bubble.user:hover { box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 28%, transparent); transform: translateY(-1px); }
+        .chat-bubble.ai {
+            background: color-mix(in srgb, var(--outline) 45%, var(--surface)); color: var(--on-surface);
+            margin-left: 0; margin-right: 0; border-bottom-left-radius: 2px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .chat-bubble.ai:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); transform: translateY(-1px); }
+        .chat-bubble.context {
+            background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+            border-left: 3px solid var(--primary); border-radius: 0 10px 10px 0;
+            color: var(--secondary); font-size: 0.75rem; padding: 10px 14px;
+            font-style: italic; margin-top: 12px;
+        }
+
+        /* Quick Action Chips */
+        .quick-actions {
+            display: flex; flex-wrap: nowrap; gap: 6px; padding: 10px 24px;
+            overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+        }
+        .quick-actions::-webkit-scrollbar { display: none; }
+        .quick-btn {
+            background: color-mix(in srgb, var(--secondary) 6%, var(--surface));
+            border: 1px solid color-mix(in srgb, var(--outline) 30%, transparent);
+            padding: 6px 14px; border-radius: 15px; font-size: 0.75rem; font-weight: 500;
+            color: var(--secondary); cursor: pointer; transition: all 0.2s ease;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .quick-btn:hover {
+            color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+            border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+            transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .quick-btn:active { transform: translateY(0) scale(0.97); box-shadow: none; }
+
+        /* Empty state */
+        .ai-empty {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; text-align: center; color: var(--secondary); gap: 8px; opacity: 0.66;
+            transition: opacity 0.4s ease;
+        }
+        .ai-empty:hover { opacity: 1; }
+        .ai-empty-icon { font-size: 2.5rem; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .ai-empty:hover .ai-empty-icon { transform: scale(1.1); }
+        .ai-empty-text { font-size: 0.8rem; line-height: 1.5; transition: color 0.4s ease; }
+        .ai-empty:hover .ai-empty-text { color: var(--on-surface); }
+
+        /* AI input */
+        .ai-input-wrap { padding: 12px 24px; }
+        .ai-input-wrap textarea {
+            width: 100%; border: 1.5px solid color-mix(in srgb, var(--primary) 60%, var(--outline));
+            border-radius: 15px; padding: 10px 16px; outline: none; font-size: 0.85rem;
+            background: var(--surface); color: var(--on-surface); resize: none;
+            font-family: inherit; line-height: 1.5; max-height: 120px; min-height: 42px;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .ai-input-wrap textarea::placeholder { color: var(--secondary); opacity: 0.66; font-size: 0.8rem; }
+        .ai-input-wrap textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4.5px color-mix(in srgb, var(--primary) 12%, transparent); }
+
+        /* Icon button */
+        .icon-btn {
+            background: none; border: none; padding: 8px; cursor: pointer;
+            color: var(--secondary); transition: 0.2s; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .icon-btn:hover { background: rgba(0,0,0,0.05); color: var(--primary); }
+
+        /* --- 5. Selection Toolbar (matching EPUB reader) --- */
+        #selection-toolbar {
+            position: fixed; display: none; z-index: 2500;
+            background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(16px);
+            border: 1px solid var(--outline); border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            padding: 4px 6px; align-items: center; gap: 2px;
+            animation: toolbarIn 0.15s ease-out;
+        }
+        #selection-toolbar.visible { display: flex; }
+        @keyframes toolbarIn { from { opacity: 0; } to { opacity: 1; } }
+        .sel-btn {
+            background: none; border: none; padding: 6px 10px; font-size: 0.78rem; font-weight: 800;
+            color: var(--secondary); cursor: pointer; border-radius: 8px; transition: 0.2s; white-space: nowrap;
+        }
+        .sel-btn:hover { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+
+        /* --- 6. Lookup Popup (matching EPUB reader) --- */
+        #lookup-popup {
+            position: fixed; display: none; z-index: 2400;
+            background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
+            border: 1px solid var(--outline); border-radius: 14px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+            padding: 14px 16px; max-width: 340px; min-width: 160px;
+            animation: toolbarIn 0.15s ease-out;
+        }
+        #lookup-popup.visible { display: block; }
+        #lookup-popup .lookup-translation { font-size: 1rem; font-weight: 600; line-height: 1.5; color: var(--on-surface); margin-bottom: 2px; }
+        #lookup-popup .lookup-explanation { font-size: 0.82rem; line-height: 1.6; color: var(--secondary); margin-top: 6px; }
+        #lookup-popup .lookup-loading { font-size: 0.8rem; color: var(--secondary); opacity: 0.6; }
+        #lookup-popup .lookup-close {
+            position: absolute; top: 6px; right: 8px; background: none; border: none;
+            font-size: 0.7rem; color: var(--secondary); cursor: pointer; opacity: 0.4;
+            padding: 2px 6px; border-radius: 4px;
+        }
+        #lookup-popup .lookup-close:hover { opacity: 1; background: rgba(0,0,0,0.05); }
+
+        /* --- 7. Theme Settings Card --- */
+        #settings-panel {
+            position: fixed; top: 80px; left: 70px; width: 280px;
+            background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px);
+            border: 1px solid var(--outline); border-radius: 20px; padding: 18px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.15); z-index: 3000; display: none;
+        }
+        .setting-section { margin-bottom: 18px; }
+        .setting-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--secondary); margin-bottom: 9px; }
+        .theme-flex { display: flex; justify-content: space-between; }
+        .theme-dot {
+            width: 30px; height: 18px; border-radius: 15px; cursor: pointer; border: none;
+            background-image: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 50%);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.4);
+            transition: transform 0.2s ease, box-shadow 0.3s ease;
+        }
+        .theme-dot:hover { transform: scale(1.1); }
+        .theme-dot.active { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 15px; }
+        .dot-lavender { background-color: #8B5CF6; } .dot-ocean { background-color: #0EA5E9; }
+        .dot-forest { background-color: #10B981; }  .dot-sepia { background-color: #D97706; }
+        .dot-slate { background-color: #6366F1; }    .dot-dark { background-color: #1E293B; }
+
+        /* --- 8. Mobile Responsive --- */
+        @media (max-width: 768px) {
+            #panels-container {
+                position: fixed; top: 0; right: 0; z-index: 4000;
+                width: 100vw !important; max-width: 400px;
+                height: 100vh; height: 100dvh;
+                background: var(--surface); border-left: 1px solid var(--outline);
+                transform: translateX(100%); transition: transform 0.3s var(--transition);
+            }
+            #panels-container.mobile-open { transform: translateX(0); box-shadow: -4px 0 24px rgba(0,0,0,0.15); }
+            #panels-container.collapsed { width: 100vw !important; max-width: 400px; transform: translateX(100%); }
+            #panels-container.collapsed.mobile-open { transform: translateX(0); }
+
+            .mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 3999; }
+            .mobile-overlay.visible { display: block; }
+
+            .toggle-group { left: 12px !important; top: 12px; }
+            #toggle-right { right: 12px !important; top: 12px; }
+            #panels-container.collapsed ~ #toggle-right { right: 12px; }
+            .toggle-btn { width: 40px; height: 40px; border-radius: 14px; }
+
+            #selection-toolbar { max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center; }
+            .sel-btn { padding: 10px 12px; font-size: 0.82rem; min-height: 40px; }
+            #lookup-popup { max-width: calc(100vw - 32px); }
+            #settings-panel { left: 50% !important; transform: translateX(-50%); width: calc(100vw - 32px) !important; max-width: 320px; top: 60px; z-index: 4500; }
+            .ai-input-wrap textarea { font-size: 16px; }
+        }
+        @media (min-width: 769px) and (max-width: 1200px) {
+            #panels-container { max-width: 50vw; }
+        }
+    </style>
+</head>
+<body>
+    <!-- PDF viewer (main area) -->
+    <div id="pdf-viewer"></div>
+
+    <!-- AI Panel (right side, matching EPUB reader) -->
+    <div id="panels-container">
+        <div style="display: flex; flex-direction: column; height: 100%;">
+            <div style="padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;">
+                <div class="ai-brand">
+                    <span class="panel-title">Marginia</span>
+                    <span class="panel-subtitle">PDF</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 2px;">
+                    <button onclick="clearChat()" class="icon-btn" title="清空对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                </div>
+            </div>
+            <div class="ai-content" id="ai-content">
+                <div id="ai-empty-state" class="ai-empty">
+                    <div class="ai-empty-icon">&#x2728;</div>
+                    <div class="ai-empty-text">选中文字后点击 Ask AI<br>或直接输入问题</div>
+                </div>
+                <div id="ai-chat-history"></div>
+            </div>
+            <div class="quick-actions">
+                <button class="quick-btn" onclick="quickAction('summarize')">总结内容</button>
+                <button class="quick-btn" onclick="quickAction('explain')">解释难点</button>
+                <button class="quick-btn" onclick="quickAction('translate')">翻译选段</button>
+            </div>
+            <div class="ai-input-wrap">
+                <textarea id="ai-input" rows="2" placeholder="输入问题…&#10;Enter 发送 · Shift+Enter 换行" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Satellite Controls -->
+    <div class="toggle-group">
+        <div id="toggle-back" class="toggle-btn" onclick="location.href='/'">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        </div>
+        <div id="toggle-settings" class="toggle-btn toggle-sub" onclick="toggleSettings()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+    </div>
+    <div id="toggle-right" class="toggle-btn" onclick="toggleRight()">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </div>
+
+    <!-- Page indicator (floating center) -->
+    <div class="page-indicator" id="page-indicator"></div>
+
+    <!-- Selection toolbar -->
+    <div id="selection-toolbar">
+        <button class="sel-btn" onclick="Sel.lookup()">Look up</button>
+        <button class="sel-btn" onclick="Sel.quickTranslate()">Translate</button>
+        <button class="sel-btn" onclick="Sel.askAI()">Ask AI</button>
+    </div>
+
+    <!-- Lookup popup -->
+    <div id="lookup-popup">
+        <button class="lookup-close" onclick="Sel.closeLookup()">&#10005;</button>
+        <div id="lookup-content"></div>
+    </div>
+
+    <!-- Settings panel -->
+    <div id="settings-panel">
+        <div class="setting-section">
+            <div class="setting-label">主题</div>
+            <div class="theme-flex" id="theme-grid"></div>
+        </div>
+    </div>
+
+    <!-- Mobile overlay -->
+    <div class="mobile-overlay" id="mobile-overlay"></div>
+
+<script type="module">
+    // --- PDF.js setup ---
+    import { getDocument, GlobalWorkerOptions, TextLayer } from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.9.155/build/pdf.min.mjs';
+    GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.9.155/build/pdf.worker.min.mjs';
+
+    const BOOK_ID = '{{ book_id }}';
+    const BOOK_TITLE = '{{ title }}';
+    const TOTAL_PAGES = {{ pages }};
+    const PDF_URL = `/api/pdf-file/${encodeURIComponent(BOOK_ID)}`;
+
+    const viewer = document.getElementById('pdf-viewer');
+    const pageIndicator = document.getElementById('page-indicator');
+
+    // --- State ---
+    let pdfDoc = null;
+    const pageContainers = [];
+    const pageRendered = [];
+    const pageHeights = [];
+    let renderingPages = new Set();
+
+    function getPageWidth() {
+        return Math.min(window.innerWidth - 40, 900);
+    }
+
+    // --- Load PDF ---
+    async function init() {
+        pageIndicator.textContent = '加载中...';
+        try {
+            pdfDoc = await getDocument(PDF_URL).promise;
+        } catch (e) {
+            viewer.innerHTML = `<div class="page-loading" style="color:#EF4444">加载失败: ${e.message}</div>`;
+            return;
+        }
+
+        const totalPages = pdfDoc.numPages;
+        pageIndicator.textContent = `${totalPages} 页`;
+
+        for (let i = 1; i <= totalPages; i++) {
+            const container = document.createElement('div');
+            container.className = 'pdf-page-container';
+            container.dataset.pageNum = i;
+            const estWidth = getPageWidth();
+            const estHeight = estWidth * 1.414;
+            container.style.width = estWidth + 'px';
+            container.style.height = estHeight + 'px';
+            viewer.appendChild(container);
+            pageContainers.push(container);
+            pageRendered.push(false);
+            pageHeights.push(estHeight);
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    const pageNum = parseInt(entry.target.dataset.pageNum);
+                    renderPage(pageNum);
+                }
+            }
+        }, { root: viewer, rootMargin: '800px 0px' });
+
+        pageContainers.forEach(c => observer.observe(c));
+        viewer.addEventListener('scroll', updatePageIndicator, { passive: true });
+        viewer.addEventListener('scroll', autoHideControls, { passive: true });
+    }
+
+    async function renderPage(pageNum) {
+        if (pageRendered[pageNum - 1] || renderingPages.has(pageNum)) return;
+        renderingPages.add(pageNum);
+
+        try {
+            const page = await pdfDoc.getPage(pageNum);
+            const desiredWidth = getPageWidth();
+            const viewport0 = page.getViewport({ scale: 1 });
+            const scale = desiredWidth / viewport0.width;
+            const viewport = page.getViewport({ scale });
+
+            const container = pageContainers[pageNum - 1];
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(viewport.width * dpr);
+            canvas.height = Math.floor(viewport.height * dpr);
+            canvas.style.width = Math.floor(viewport.width) + 'px';
+            canvas.style.height = Math.floor(viewport.height) + 'px';
+            ctx.scale(dpr, dpr);
+
+            container.style.width = Math.floor(viewport.width) + 'px';
+            container.style.height = Math.floor(viewport.height) + 'px';
+            container.style.setProperty('--scale-factor', scale.toString());
+            container.innerHTML = '';
+            container.appendChild(canvas);
+
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            // Text layer for selection
+            const textContent = await page.getTextContent();
+            const textLayerDiv = document.createElement('div');
+            textLayerDiv.className = 'textLayer';
+            container.appendChild(textLayerDiv);
+
+            const textLayer = new TextLayer({
+                textContentSource: textContent,
+                container: textLayerDiv,
+                viewport: viewport,
+            });
+            await textLayer.render();
+
+            pageRendered[pageNum - 1] = true;
+            pageHeights[pageNum - 1] = viewport.height;
+        } catch (e) {
+            console.error(`Failed to render page ${pageNum}:`, e);
+        } finally {
+            renderingPages.delete(pageNum);
+        }
+    }
+
+    function updatePageIndicator() {
+        const scrollTop = viewer.scrollTop;
+        const viewerMid = scrollTop + viewer.clientHeight / 2;
+        let cumHeight = 0;
+        for (let i = 0; i < pageContainers.length; i++) {
+            const h = pageContainers[i].offsetHeight + 8;
+            cumHeight += h;
+            if (cumHeight > viewerMid) {
+                pageIndicator.textContent = `${i + 1} / ${pageContainers.length}`;
+                return;
+            }
+        }
+        pageIndicator.textContent = `${pageContainers.length} / ${pageContainers.length}`;
+    }
+
+    // --- Auto-hide controls on scroll ---
+    let _scrollTimer = null;
+    let _lastScrollTop = 0;
+    function autoHideControls() {
+        const st = viewer.scrollTop;
+        const delta = Math.abs(st - _lastScrollTop);
+        if (delta > 30) {
+            document.querySelector('.toggle-group').classList.add('auto-hidden');
+            document.getElementById('toggle-right').classList.add('auto-hidden');
+            pageIndicator.classList.add('auto-hidden');
+        }
+        _lastScrollTop = st;
+        clearTimeout(_scrollTimer);
+        _scrollTimer = setTimeout(() => {
+            document.querySelector('.toggle-group').classList.remove('auto-hidden');
+            document.getElementById('toggle-right').classList.remove('auto-hidden');
+            pageIndicator.classList.remove('auto-hidden');
+        }, 1200);
+    }
+
+    // --- Selection module ---
+    const Sel = {
+        _selText: null,
+        _selRect: null,
+        _speakPlayer: null,
+
+        init() {
+            const toolbar = document.getElementById('selection-toolbar');
+            const lookup = document.getElementById('lookup-popup');
+
+            viewer.addEventListener('mouseup', () => {
+                setTimeout(() => this._checkSelection(), 10);
+            });
+
+            let _selTimer = null;
+            document.addEventListener('selectionchange', () => {
+                if (!('ontouchstart' in window)) return;
+                clearTimeout(_selTimer);
+                _selTimer = setTimeout(() => {
+                    const sel = window.getSelection();
+                    if (!sel.toString().trim()) return;
+                    if (!viewer.contains(sel.anchorNode)) return;
+                    this._checkSelection();
+                }, 300);
+            });
+
+            document.addEventListener('mousedown', (e) => {
+                if (!toolbar.contains(e.target)) toolbar.classList.remove('visible');
+                if (!lookup.contains(e.target) && !toolbar.contains(e.target)) lookup.classList.remove('visible');
+            });
+
+            viewer.addEventListener('scroll', () => {
+                toolbar.classList.remove('visible');
+            }, { passive: true });
+        },
+
+        _checkSelection() {
+            const sel = window.getSelection();
+            const text = sel.toString().trim();
+            if (!text || text.length < 1) return;
+            if (!viewer.contains(sel.anchorNode)) return;
+
+            this._selText = text;
+            const range = sel.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            this._selRect = { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height };
+
+            const toolbar = document.getElementById('selection-toolbar');
+            toolbar.classList.remove('visible');
+            void toolbar.offsetWidth;
+
+            toolbar.style.visibility = 'hidden';
+            toolbar.classList.add('visible');
+            const tbWidth = toolbar.offsetWidth;
+            const tbHeight = toolbar.offsetHeight;
+            toolbar.style.visibility = '';
+
+            let top = rect.top - tbHeight - 15;
+            let left = rect.left + (rect.width / 2) - (tbWidth / 2);
+            const vpHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+
+            if (top < 10) top = rect.bottom + 8;
+            if (top + tbHeight > vpHeight - 8) {
+                top = rect.top - tbHeight - 15;
+                if (top < 10) top = 10;
+            }
+            left = Math.max(8, Math.min(left, window.innerWidth - tbWidth - 8));
+
+            toolbar.style.top = top + 'px';
+            toolbar.style.left = left + 'px';
+            toolbar.classList.add('visible');
+
+            // Auto-translate short words/phrases
+            const wordCount = text.split(/\s+/).length;
+            if (wordCount <= 3 && text.length <= 40 && !text.includes('\n')) {
+                const clean = text.replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu, '');
+                if (clean) this._doTranslate(clean);
+            }
+        },
+
+        _hide() {
+            document.getElementById('selection-toolbar').classList.remove('visible');
+        },
+
+        quickTranslate() {
+            const text = this._selText;
+            if (!text) return;
+            this._hide();
+            window.getSelection().removeAllRanges();
+            this._doTranslate(text);
+        },
+
+        lookup() {
+            const text = this._selText;
+            if (!text) return;
+            this._hide();
+            window.getSelection().removeAllRanges();
+            this._doLookup(text);
+        },
+
+        askAI() {
+            const text = this._selText;
+            if (!text) return;
+            this._hide();
+            window.getSelection().removeAllRanges();
+            // Open panel with context
+            const panel = document.getElementById('panels-container');
+            if (panel.classList.contains('collapsed')) toggleRight();
+            _aiContext = text;
+            _addContextBubble(text);
+            document.getElementById('ai-input').focus();
+        },
+
+        closeLookup() {
+            document.getElementById('lookup-popup').classList.remove('visible');
+        },
+
+        _speak(text) {
+            if (this._speakPlayer) { this._speakPlayer.pause(); this._speakPlayer = null; }
+            const cjk = [...text].filter(c => c >= '\u4e00' && c <= '\u9fff').length;
+            const voice = cjk > text.length * 0.3 ? 'zh-CN-XiaoxiaoNeural' : 'en-US-JennyNeural';
+            const a = new Audio(`/api/tts?text=${encodeURIComponent(text.substring(0, 500))}&voice=${voice}`);
+            this._speakPlayer = a;
+            a.onended = () => { this._speakPlayer = null; };
+            a.play().catch(() => {});
+        },
+
+        async _doTranslate(text) {
+            const contentEl = document.getElementById('lookup-content');
+            contentEl.innerHTML = '<div class="lookup-loading">翻译中...</div>';
+            this._showLookup();
+            try {
+                const resp = await fetch('/api/quick-translate', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await resp.json();
+                let html = '';
+                const safeText = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ');
+                const speakBtn = `<button onclick="Sel._speak('${safeText}')" style="background:none;border:none;cursor:pointer;padding:2px 4px;vertical-align:middle;opacity:0.5;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" title="发音"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>`;
+
+                if (data.source === 'dict') {
+                    html += `<div style="font-size:0.75rem;color:var(--secondary);margin-bottom:6px"><b>${data.word}</b>`;
+                    if (data.phonetic) html += ` <span style="opacity:0.6">/${data.phonetic}/</span>`;
+                    html += ` ${speakBtn}</div>`;
+                    if (data.translation) html += `<div class="lookup-translation">${data.translation.replace(/\n/g, '<br>')}</div>`;
+                    if (data.definition) html += `<div class="lookup-explanation" style="margin-top:6px;font-size:0.78rem">${data.definition.split('\n').slice(0, 2).join('<br>')}</div>`;
+                } else if (data.source === 'cn-dict' || data.source === 'ai-dict') {
+                    html += `<div style="font-size:0.75rem;color:var(--secondary);margin-bottom:6px"><b>${data.word}</b>`;
+                    if (data.pinyin) html += ` <span style="opacity:0.6">${data.pinyin}</span>`;
+                    html += ` ${speakBtn}</div>`;
+                    html += `<div class="lookup-translation">${data.translation.replace(/\n/g, '<br>')}</div>`;
+                } else if (data.translation) {
+                    html += `<div class="lookup-translation">${data.translation} ${speakBtn}</div>`;
+                }
+
+                contentEl.innerHTML = html || '<div class="lookup-loading">无结果</div>';
+                this._showLookup();
+            } catch (e) {
+                contentEl.innerHTML = '<div class="lookup-loading">翻译失败</div>';
+            }
+        },
+
+        async _doLookup(text) {
+            const contentEl = document.getElementById('lookup-content');
+            contentEl.innerHTML = '<div class="lookup-loading">查询中...</div>';
+            this._showLookup();
+            try {
+                const resp = await fetch('/api/wiki-lookup', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await resp.json();
+                let html = '';
+                if (data.title)   html += `<div class="lookup-translation">${data.title}</div>`;
+                if (data.extract) html += `<div class="lookup-explanation">${data.extract.length > 200 ? data.extract.substring(0, 200) + '...' : data.extract}</div>`;
+                if (data.url)     html += `<div style="margin-top:4px"><a href="${data.url}" target="_blank" style="font-size:0.7rem;color:var(--primary);text-decoration:none">Wikipedia &rarr;</a></div>`;
+                if (!data.title && !data.extract) html = '<div class="lookup-explanation" style="opacity:0.5">未找到百科条目</div>';
+                contentEl.innerHTML = html;
+                this._showLookup();
+            } catch (e) {
+                contentEl.innerHTML = '<div class="lookup-loading">查询失败</div>';
+            }
+        },
+
+        _showLookup() {
+            const popup = document.getElementById('lookup-popup');
+            const rect = this._selRect;
+            if (!rect) return;
+
+            popup.style.visibility = 'hidden';
+            popup.classList.add('visible');
+            const pw = popup.offsetWidth;
+            const ph = popup.offsetHeight;
+            popup.style.visibility = '';
+
+            let top = rect.bottom + 10;
+            let left = rect.left + (rect.width / 2) - (pw / 2);
+
+            if (top + ph > window.innerHeight - 20) top = rect.top - ph - 10;
+
+            const toolbar = document.getElementById('selection-toolbar');
+            if (toolbar.classList.contains('visible')) {
+                const tb = toolbar.getBoundingClientRect();
+                if (top < tb.bottom && top + ph > tb.top) {
+                    top = (top >= rect.bottom) ? rect.top - ph - 10 : rect.bottom + 10;
+                }
+            }
+
+            left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+            top = Math.max(10, top);
+
+            popup.style.top = top + 'px';
+            popup.style.left = left + 'px';
+            popup.classList.add('visible');
+        },
+    };
+    window.Sel = Sel;
+
+    // --- AI Chat ---
+    let _aiContext = '';
+    let _aiStreaming = false;
+
+    function _addContextBubble(text) {
+        const history = document.getElementById('ai-chat-history');
+        const empty = document.getElementById('ai-empty-state');
+        if (empty) empty.style.display = 'none';
+        const div = document.createElement('div');
+        div.className = 'chat-bubble context';
+        div.textContent = text.length > 200 ? text.substring(0, 200) + '...' : text;
+        history.appendChild(div);
+        const content = document.getElementById('ai-content');
+        content.scrollTop = content.scrollHeight;
+    }
+
+    async function sendChat() {
+        const input = document.getElementById('ai-input');
+        const question = input.value.trim();
+        if (!question || _aiStreaming) return;
+
+        const history = document.getElementById('ai-chat-history');
+        const empty = document.getElementById('ai-empty-state');
+        if (empty) empty.style.display = 'none';
+
+        // User bubble
+        const userDiv = document.createElement('div');
+        userDiv.className = 'chat-bubble user';
+        userDiv.textContent = question;
+        history.appendChild(userDiv);
+
+        input.value = '';
+        input.style.height = 'auto';
+
+        // AI bubble (streaming)
+        const aiDiv = document.createElement('div');
+        aiDiv.className = 'chat-bubble ai';
+        aiDiv.textContent = '';
+        history.appendChild(aiDiv);
+        const content = document.getElementById('ai-content');
+        content.scrollTop = content.scrollHeight;
+
+        _aiStreaming = true;
+
+        try {
+            const resp = await fetch('/api/ai/chat-context', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, context: _aiContext, title: BOOK_TITLE }),
+            });
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                fullText += chunk;
+                aiDiv.textContent = fullText.replace(/\n<!--model:.*?-->$/s, '');
+                content.scrollTop = content.scrollHeight;
+            }
+        } catch (e) {
+            aiDiv.textContent = `错误: ${e.message}`;
+        }
+
+        _aiContext = '';
+        _aiStreaming = false;
+    }
+    window.sendChat = sendChat;
+
+    function clearChat() {
+        const history = document.getElementById('ai-chat-history');
+        history.innerHTML = '';
+        const empty = document.getElementById('ai-empty-state');
+        if (empty) empty.style.display = '';
+        _aiContext = '';
+    }
+    window.clearChat = clearChat;
+
+    function quickAction(action) {
+        const panel = document.getElementById('panels-container');
+        if (panel.classList.contains('collapsed')) toggleRight();
+
+        const prompts = {
+            summarize: '请总结这本PDF的内容要点',
+            explain: '请解释当前阅读内容中的难点',
+            translate: '请翻译我选中的内容',
+        };
+        const input = document.getElementById('ai-input');
+        input.value = prompts[action] || '';
+        input.focus();
+    }
+    window.quickAction = quickAction;
+
+    // Auto-resize textarea
+    document.getElementById('ai-input').addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // --- Toggle Controls ---
+    function toggleRight() {
+        const panel = document.getElementById('panels-container');
+        const btn = document.getElementById('toggle-right');
+        const isMobile = window.innerWidth <= 768;
+
+        if (isMobile) {
+            panel.classList.toggle('mobile-open');
+            document.getElementById('mobile-overlay').classList.toggle('visible', panel.classList.contains('mobile-open'));
+        } else {
+            panel.classList.toggle('collapsed');
+            btn.classList.toggle('rotated', !panel.classList.contains('collapsed'));
+        }
+    }
+    window.toggleRight = toggleRight;
+
+    // Mobile overlay click
+    document.getElementById('mobile-overlay').addEventListener('click', () => {
+        document.getElementById('panels-container').classList.remove('mobile-open');
+        document.getElementById('mobile-overlay').classList.remove('visible');
+    });
+
+    // --- Theme System ---
+    const THEMES = [
+        { name: '', cls: 'dot-lavender', label: 'Lavender' },
+        { name: 'ocean', cls: 'dot-ocean', label: 'Ocean' },
+        { name: 'forest', cls: 'dot-forest', label: 'Forest' },
+        { name: 'sepia', cls: 'dot-sepia', label: 'Sepia' },
+        { name: 'slate', cls: 'dot-slate', label: 'Slate' },
+        { name: 'dark', cls: 'dot-dark', label: 'Dark' },
+    ];
+
+    function initThemes() {
+        const grid = document.getElementById('theme-grid');
+        const saved = localStorage.getItem('reader_theme') || '';
+        if (saved) document.documentElement.setAttribute('data-theme', saved);
+
+        THEMES.forEach(t => {
+            const dot = document.createElement('button');
+            dot.className = `theme-dot ${t.cls}${t.name === saved ? ' active' : ''}`;
+            dot.title = t.label;
+            dot.onclick = () => {
+                if (t.name) {
+                    document.documentElement.setAttribute('data-theme', t.name);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+                localStorage.setItem('reader_theme', t.name);
+                grid.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+                dot.classList.add('active');
+            };
+            grid.appendChild(dot);
+        });
+    }
+
+    // Settings panel toggle
+    let _settingsOpen = false;
+    function toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        _settingsOpen = !_settingsOpen;
+        panel.style.display = _settingsOpen ? 'block' : 'none';
+    }
+    window.toggleSettings = toggleSettings;
+
+    // Close settings on outside click
+    document.addEventListener('mousedown', (e) => {
+        const panel = document.getElementById('settings-panel');
+        const btn = document.getElementById('toggle-settings');
+        if (_settingsOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
+            _settingsOpen = false;
+            panel.style.display = 'none';
+        }
+    });
+
+    // --- Init ---
+    initThemes();
+    Sel.init();
+    init();
+
+    // Initialize AI panel: collapsed by default on desktop
+    if (window.innerWidth > 768) {
+        document.getElementById('panels-container').classList.add('collapsed');
+        document.getElementById('toggle-right').classList.add('rotated');
+    }
+</script>
+</body>
+</html>
