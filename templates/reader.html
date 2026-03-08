@@ -276,7 +276,7 @@
         @keyframes magPulse { 0%, 100% { opacity: 0.85; } 50% { opacity: 0.15; } }
         
         /* Floating para action buttons */
-        #floating-para-btns { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 100; opacity: 0; transform: translateY(-50%) scale(0.9); transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.15s ease-out; }
+        #floating-para-btns { position: absolute; left: -9999px; top: -9999px; pointer-events: none; z-index: 100; opacity: 0; transform: translateY(-50%) scale(0.9); transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.15s ease-out; }
         #floating-para-btns.visible { opacity: 1; pointer-events: auto; transform: translateY(-50%) scale(1); }
         #floating-para-btns .p-btn { pointer-events: auto; opacity: 0.6; transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
         #floating-para-btns .p-btn:hover { opacity: 1; }
@@ -724,18 +724,21 @@
         .ai-provider-card.drag-before::before { top: -6px; }
         .ai-provider-card.drag-after::after { bottom: -6px; }
         .ai-provider-card .apc-header select {
-            flex: 1; padding: 4px 8px; border: 1px solid var(--outline); border-radius: 8px;
+            flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--outline); border-radius: 8px;
             font-size: 0.75rem; background: var(--surface); color: var(--on-surface); outline: none; font-family: inherit;
         }
         .ai-provider-card .apc-header select:focus { border-color: var(--primary); }
         .ai-provider-card .apc-del {
-            width: 22px; height: 22px; border: none; background: none; color: var(--secondary);
-            cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center;
-            font-size: 0.85rem; transition: color 0.2s, background 0.2s; flex-shrink: 0;
+            position: absolute; top: -8px; right: -4px;
+            width: 20px; height: 20px; border: none; background: var(--surface); color: var(--secondary);
+            cursor: pointer; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; transition: color 0.2s, background 0.2s, opacity 0.2s; opacity: 0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
-        .ai-provider-card .apc-del:hover { color: #EF4444; background: rgba(239,68,68,0.08); }
+        .ai-provider-card .apc-del:hover { color: #EF4444; background: rgba(239,68,68,0.08); opacity: 1; }
+        .ai-provider-card:hover .apc-del { opacity: 0.7; }
         .ai-provider-card .apc-key-row { display: flex; gap: 6px; margin-bottom: 8px; }
-        .ai-provider-card .apc-custom-row { display: flex; gap: 6px; margin-bottom: 8px; }
+        .ai-provider-card .apc-custom-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
         .ai-provider-card .apc-custom-row input { flex: 1; padding: 6px 8px; border: 1px solid var(--outline); border-radius: 6px; font-size: 13px; background: var(--bg); color: var(--fg); }
         .ai-provider-card .apc-custom-row input:focus { border-color: var(--primary); outline: none; }
         .ai-provider-card .apc-key-input {
@@ -788,6 +791,18 @@
             transition: color 0.2s, border-color 0.2s; font-family: inherit;
         }
         .ai-add-btn:hover { color: var(--primary); border-color: var(--primary); }
+        .ai-add-menu {
+            display: none; margin-bottom: 6px; background: var(--surface); border: 1px solid var(--outline);
+            border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 4px;
+        }
+        .ai-add-menu-item {
+            display: block; width: 100%; padding: 7px 10px; border: none; background: none;
+            color: var(--on-surface); font-size: 0.72rem; text-align: left; cursor: pointer;
+            border-radius: 7px; font-family: inherit; transition: background 0.15s;
+        }
+        .ai-add-menu-item:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+        .ai-add-menu-item:disabled { color: var(--secondary); opacity: 0.5; cursor: default; }
+        .ai-add-menu-item:disabled:hover { background: none; }
         .ai-task-header { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
         .ai-sub-section .ai-task-header .ai-section-chevron { transition: transform 0.25s ease; }
         .ai-sub-section.expanded .ai-task-header .ai-section-chevron { transform: rotate(90deg); }
@@ -1402,7 +1417,7 @@
           <div id="dict-status-list"></div>
         </div>
         <div class="konami-hint">🎮 ↑↑↓↓←→←→BA</div>
-        <div class="setting-section ai-providers-section" id="ai-providers-section"><div class="ai-section-header" onclick="UX.toggleAISection()"><div class="ai-section-row1"><div class="setting-label" data-i18n="AI Models">AI Models</div><span class="ai-section-chevron">▶</span><span class="ai-section-summary" id="ai-section-summary"></span></div></div><div class="ai-section-body"><div id="ai-providers-list"></div><button class="ai-add-btn" onclick="UX.addProvider()" data-i18n="+ Add Provider">+ Add Provider</button></div></div>
+        <div class="setting-section ai-providers-section" id="ai-providers-section"><div class="ai-section-header" onclick="UX.toggleAISection()"><div class="ai-section-row1"><div class="setting-label" data-i18n="AI Models">AI Models</div><span class="ai-section-chevron">▶</span><span class="ai-section-summary" id="ai-section-summary"></span></div></div><div class="ai-section-body"><div id="ai-providers-list"></div><div class="ai-add-wrap"><div class="ai-add-menu" id="ai-add-menu"></div><button class="ai-add-btn" onclick="UX.toggleAddMenu()" data-i18n="+ Add Provider">+ Add Provider</button></div></div></div>
         <div class="setting-section ai-providers-section ai-sub-section" id="ai-task-routing-section"><div class="ai-task-header" onclick="UX.toggleTaskRouting()"><div class="setting-label" data-i18n="Task Routing">Task Routing</div><span class="ai-section-chevron">▶</span></div><div class="ai-task-body"><div id="ai-task-routing"></div></div></div>
         <div class="setting-section ai-providers-section ai-sub-section" id="ai-config-section"><div class="ai-task-header" onclick="UX.toggleConfigSection()"><div class="setting-label" data-i18n="Config Management">Config Management</div><span class="ai-section-chevron">▶</span></div><div class="ai-task-body"><div class="ai-config-btns"><button type="button" class="ai-section-menu-btn" onclick="UX.exportConfig()" data-i18n="Export"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button><button type="button" class="ai-section-menu-btn" onclick="document.getElementById('ai-import-file').click()" data-i18n="Import"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button></div></div></div>
         <input type="file" id="ai-import-file" accept=".json" style="display:none" onchange="UX.importConfig(this)">
@@ -2199,6 +2214,7 @@
                         }).join('') +
                         `<option value="custom"${isCustom ? ' selected' : ''}>${defs.custom.name}</option>`;
                     card.innerHTML = `
+                        <button type="button" class="apc-del" onclick="UX._delProvider(${idx})" title="Delete">×</button>
                         <div class="apc-header">
                             <div class="apc-rank">${rank || '·'}</div>
                             <span class="apc-drag" title="拖拽排序">☰</span>
@@ -2207,7 +2223,6 @@
                                 <input type="checkbox" ${p.enabled ? 'checked' : ''} onchange="UX._onProviderToggle(${idx}, this.checked)">
                                 <span class="toggle-track"></span>
                             </label>
-                            <button type="button" class="apc-del" onclick="UX._delProvider(${idx})" title="Delete">×</button>
                         </div>
                         ${isCustom ? `<div class="apc-custom-row"><input placeholder="供应商名称" value="${p.custom_name || ''}" onblur="UX._onCustomNameChange(${idx}, this.value)"><input type="url" placeholder="Base URL (https://...)" value="${p.base_url || ''}" onblur="UX._onBaseUrlChange(${idx}, this.value)"></div>` : ''}
                         <div class="apc-key-row">
@@ -2249,6 +2264,7 @@
                         UX._dragStartY = e.clientY;
                         UX._dragStartX = e.clientX;
                         UX._dragIdx = idx;
+                        UX._dragScrollRAF = null;
                         card.classList.add('dragging');
                         e.dataTransfer.effectAllowed = 'move';
                     });
@@ -2257,6 +2273,7 @@
                         card.classList.remove('dragging');
                         list.querySelectorAll('.drag-before,.drag-after').forEach(el => { el.classList.remove('drag-before', 'drag-after'); });
                         UX._dragIdx = null;
+                        if (UX._dragScrollRAF) { cancelAnimationFrame(UX._dragScrollRAF); UX._dragScrollRAF = null; }
                     });
                     card.addEventListener('dragover', e => {
                         if (UX._dragIdx === null || UX._dragIdx === idx) return;
@@ -2265,6 +2282,15 @@
                         if (dy < dx) return; // ignore horizontal drag
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'move';
+                        // Auto-scroll settings panel when dragging near edges
+                        const sp = document.getElementById('settings-panel');
+                        if (sp) {
+                            const sr = sp.getBoundingClientRect();
+                            const edge = 40;
+                            const speed = 8;
+                            if (e.clientY < sr.top + edge) sp.scrollTop -= speed;
+                            else if (e.clientY > sr.bottom - edge) sp.scrollTop += speed;
+                        }
                         // Show insertion line above or below based on cursor position
                         const rect = card.getBoundingClientRect();
                         const isAbove = e.clientY < rect.top + rect.height / 2;
@@ -2293,12 +2319,24 @@
                 });
                 if (panel) panel.scrollTop = savedScroll;
             },
-            addProvider() {
+            toggleAddMenu() {
+                const menu = document.getElementById('ai-add-menu');
+                if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
                 const used = new Set(this._providers.map(p => p.id));
                 const allIds = Object.keys(this._providerDefs).filter(id => id !== 'custom');
-                let nextId = allIds.find(id => !used.has(id));
-                if (!nextId) {
-                    // All preset providers used, add a custom one
+                const defs = this._providerDefs;
+                menu.innerHTML = allIds.map(id => {
+                    const dis = used.has(id) ? ' disabled' : '';
+                    return `<button class="ai-add-menu-item"${dis} onclick="UX._addProviderById('${id}')">${(defs[id]||{}).name || id}</button>`;
+                }).join('') +
+                    `<button class="ai-add-menu-item" onclick="UX._addProviderById('custom')">${defs.custom.name}</button>`;
+                menu.style.display = 'block';
+            },
+            _addProviderById(id) {
+                document.getElementById('ai-add-menu').style.display = 'none';
+                const used = new Set(this._providers.map(p => p.id));
+                let nextId = id;
+                if (id === 'custom') {
                     if (!used.has('custom')) { nextId = 'custom'; }
                     else { let n = 2; while (used.has(`custom_${n}`)) n++; nextId = `custom_${n}`; }
                 }
