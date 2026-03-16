@@ -1504,12 +1504,10 @@ async def list_apple_books():
         title_name = _safe_dirname(r['ZTITLE'], [r['ZAUTHOR']] if r['ZAUTHOR'] else None)
         if os.path.exists(os.path.join(BOOKS_DIR, title_name + "_data", "book.pkl")):
             return True
-        # 3. Fuzzy: normalized prefix match or substring containment
+        # 3. Fuzzy: require full normalized equality (prefix match too loose for serials)
         ab_norm = _normalize(r['ZTITLE'])
-        for imp_norm in imported_normalized:
-            if (imp_norm.startswith(ab_norm[:6]) or ab_norm.startswith(imp_norm[:6])
-                    or (len(imp_norm) >= 4 and imp_norm in ab_norm)):
-                return True
+        if ab_norm in imported_normalized:
+            return True
         return False
 
     books = []
