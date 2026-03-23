@@ -4671,7 +4671,9 @@
                 sb.classList.toggle('mobile-open');
                 _overlay.classList.toggle('visible', opening);
             } else {
-                document.getElementById('sidebar').classList.toggle('collapsed');
+                const sb = document.getElementById('sidebar');
+                sb.classList.toggle('collapsed');
+                sessionStorage.setItem('sidebar_collapsed', sb.classList.contains('collapsed') ? '1' : '0');
             }
         };
         window.toggleRight = () => {
@@ -4682,8 +4684,10 @@
                 pc.classList.toggle('mobile-open');
                 _overlay.classList.toggle('visible', opening);
             } else {
-                document.getElementById('panels-container').classList.toggle('collapsed');
+                const pc = document.getElementById('panels-container');
+                pc.classList.toggle('collapsed');
                 document.getElementById('toggle-right').classList.toggle('rotated');
+                sessionStorage.setItem('panels_collapsed', pc.classList.contains('collapsed') ? '1' : '0');
             }
         };
         // Mobile: tap toggle-left to expand sub-buttons, tap again to toggle sidebar
@@ -5214,6 +5218,15 @@
         // Restore sidebar scroll position
         const savedScroll = sessionStorage.getItem('sidebar_scroll');
         if (savedScroll) document.getElementById('sidebar').scrollTop = parseInt(savedScroll);
+
+        // Restore panel collapsed states
+        if (sessionStorage.getItem('sidebar_collapsed') === '1') {
+            document.getElementById('sidebar').classList.add('collapsed');
+        }
+        if (sessionStorage.getItem('panels_collapsed') === '1') {
+            document.getElementById('panels-container').classList.add('collapsed');
+            document.getElementById('toggle-right').classList.add('rotated');
+        }
         function _getParas() {
             return Array.from(_contentEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre'));
         }

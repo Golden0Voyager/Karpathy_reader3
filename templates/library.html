@@ -269,16 +269,80 @@
             font-size: 0.7rem; color: rgba(0,0,0,0.4); margin-top: 8px;
         }
 
-        .book-info { padding: 10px 2px 0; }
+        /* PDF covers: show full page without cropping */
+        .book-card[data-format="pdf"] .book-cover-wrap {
+            background: #fff;
+        }
+        .book-card[data-format="pdf"] .book-cover-wrap img {
+            object-fit: contain;
+        }
+
+        .book-info { padding: 10px 2px 0; flex: 1; display: flex; flex-direction: column; }
         .book-title {
             font-size: 0.85rem; font-weight: 600; line-height: 1.35;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
             overflow: hidden; margin-bottom: 3px;
         }
+        .book-meta {
+            display: flex; align-items: center; justify-content: space-between; gap: 6px;
+            margin-top: auto;
+        }
         .book-author {
             font-size: 0.75rem; color: var(--outline); line-height: 1.3;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            min-width: 0;
         }
+        .format-badge {
+            padding: 1px 6px; border-radius: 3px;
+            font-size: 0.6rem; font-weight: 700; letter-spacing: 0.3px;
+            text-transform: uppercase; line-height: 1.5; flex-shrink: 0;
+        }
+        .format-badge.pdf { background: rgba(220, 38, 38, 0.10); color: #DC2626; }
+        .format-badge.epub { background: rgba(103, 80, 164, 0.08); color: var(--primary); }
+
+        /* Library toolbar */
+        .library-toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+        }
+        .filter-chips { display: flex; gap: 8px; }
+        .filter-chip {
+            padding: 6px 16px; border-radius: 18px; border: 1.5px solid var(--outline-variant);
+            background: transparent; color: var(--on-surface); font-size: 0.82rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s var(--transition); user-select: none;
+        }
+        .filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+        .filter-chip.active {
+            background: var(--primary); color: white; border-color: var(--primary);
+        }
+        .sort-wrapper { position: relative; }
+        .sort-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 18px; border: 1.5px solid var(--outline-variant);
+            background: transparent; color: var(--on-surface); font-size: 0.82rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s var(--transition); user-select: none;
+        }
+        .sort-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .sort-btn svg { width: 14px; height: 14px; }
+        .sort-btn .sort-arrow { font-size: 0.7rem; opacity: 0.5; }
+        .sort-menu {
+            display: none; position: absolute; right: 0; top: calc(100% + 6px);
+            background: white; border: 1px solid var(--outline-variant); border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.10); min-width: 160px; z-index: 100;
+            overflow: hidden; padding: 4px 0;
+        }
+        .sort-menu.open { display: block; }
+        .sort-menu-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; cursor: pointer; transition: background 0.12s;
+            font-size: 0.82rem; font-weight: 500; color: var(--on-surface);
+        }
+        .sort-menu-item:hover { background: rgba(0,0,0,0.04); }
+        .sort-menu-item.active { color: var(--primary); font-weight: 600; }
+        .sort-menu-item .sort-dir { font-size: 0.75rem; opacity: 0.6; }
+        .sort-menu-divider { height: 1px; background: var(--outline-variant); margin: 4px 0; }
+        .sort-dir-check { font-size: 0.75rem; color: var(--primary); font-weight: 600; }
+        .book-card.filtered-out { display: none; }
 
         /* Empty state */
         .empty-state {
@@ -415,6 +479,31 @@
             <input type="file" id="file-input" accept=".epub,.pdf" style="display:none" onchange="uploadFile(this.files[0])">
         </header>
 
+        {% if books %}
+        <div class="library-toolbar">
+            <div class="filter-chips">
+                <button class="filter-chip active" data-filter="all" data-t="filter-all" onclick="setFilter('all')">全部</button>
+                <button class="filter-chip" data-filter="epub" onclick="setFilter('epub')">EPUB</button>
+                <button class="filter-chip" data-filter="pdf" onclick="setFilter('pdf')">PDF</button>
+            </div>
+            <div class="sort-wrapper">
+                <button class="sort-btn" onclick="toggleSortMenu(event)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+                    <span id="sort-label" data-t="sort-title">按标题</span>
+                    <span class="sort-arrow" id="sort-arrow">↑</span>
+                </button>
+                <div class="sort-menu" id="sort-menu">
+                    <div class="sort-menu-item active" data-sort="title" onclick="setSort('title')" data-t="sort-title">按标题</div>
+                    <div class="sort-menu-item" data-sort="author" onclick="setSort('author')" data-t="sort-author">按作者</div>
+                    <div class="sort-menu-item" data-sort="mtime" onclick="setSort('mtime')" data-t="sort-mtime">按添加时间</div>
+                    <div class="sort-menu-divider"></div>
+                    <div class="sort-menu-item" data-dir="asc" onclick="setSortDir(true)"><span data-t="sort-asc">正序 A→Z</span><span class="sort-dir-check" id="dir-asc">✓</span></div>
+                    <div class="sort-menu-item" data-dir="desc" onclick="setSortDir(false)"><span data-t="sort-desc">倒序 Z→A</span><span class="sort-dir-check" id="dir-desc" style="visibility:hidden">✓</span></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% if not books %}
         <div class="empty-state" onclick="document.getElementById('file-input').click()">
             <div class="empty-icon">📖</div>
@@ -425,7 +514,7 @@
 
         <div class="book-grid">
             {% for book in books %}
-            <a href="{% if book.format == 'pdf' %}/read-pdf/{{ book.id }}{% else %}/read/{{ book.id }}/0{% endif %}" class="book-card" data-book-id="{{ book.id }}" data-original-title="{{ book.original_title }}" onclick="return handleCardClick(event)">
+            <a href="{% if book.format == 'pdf' %}/read-pdf/{{ book.id }}{% else %}/read/{{ book.id }}/0{% endif %}" class="book-card" data-book-id="{{ book.id }}" data-original-title="{{ book.original_title }}" data-format="{{ book.format or 'epub' }}" data-author="{{ book.author }}" data-title="{{ book.title }}" data-mtime="{{ book.mtime }}" onclick="return handleCardClick(event)">
                 <div class="book-cover-wrap" id="cover-{{ loop.index }}">
                     <img src="/api/book-cover/{{ book.id }}" alt=""
                          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -436,7 +525,10 @@
                 </div>
                 <div class="book-info">
                     <div class="book-title">{{ book.title }}</div>
-                    <div class="book-author">{{ book.author }}</div>
+                    <div class="book-meta">
+                        <div class="book-author">{{ book.author }}</div>
+                        <span class="format-badge {{ book.format or 'epub' }}">{{ (book.format or 'epub')|upper }}</span>
+                    </div>
                 </div>
             </a>
             {% endfor %}
@@ -581,7 +673,13 @@
             'ab-no-books': '未找到书籍',
             'selected': '已选择 {n} 本',
             'done': '完成',
-            'failed': '失败'
+            'failed': '失败',
+            'filter-all': '全部',
+            'sort-title': '按标题',
+            'sort-author': '按作者',
+            'sort-mtime': '按添加时间',
+            'sort-asc': '正序 A→Z',
+            'sort-desc': '倒序 Z→A'
         },
         en: {
             'importing': 'Importing...',
@@ -620,7 +718,13 @@
             'ab-no-books': 'No books found',
             'selected': '{n} selected',
             'done': 'Done',
-            'failed': 'Failed'
+            'failed': 'Failed',
+            'filter-all': 'All',
+            'sort-title': 'By Title',
+            'sort-author': 'By Author',
+            'sort-mtime': 'By Date Added',
+            'sort-asc': 'Ascending A→Z',
+            'sort-desc': 'Descending Z→A'
         }
     };
 
@@ -976,6 +1080,133 @@
         importing=false; document.getElementById('ab-import-btn').textContent = t('btn-import'); updateSelectedCount();
         setTimeout(()=>window.location.reload(), 1500);
     }
+
+    // --- Filter & Sort ---
+    let _currentFilter = 'all';
+    let _currentSort = 'title';
+    let _sortAsc = true;
+
+    function setFilter(val) {
+        _currentFilter = val;
+        document.querySelectorAll('.filter-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.filter === val);
+        });
+        localStorage.setItem('lib_filter', val);
+        applyFilterAndSort();
+    }
+
+    function setSort(key) {
+        _currentSort = key;
+        // Update menu active state
+        document.querySelectorAll('.sort-menu-item[data-sort]').forEach(item => {
+            item.classList.toggle('active', item.dataset.sort === key);
+        });
+        // Update button label and arrow
+        document.getElementById('sort-label').textContent = t('sort-' + key);
+        document.getElementById('sort-arrow').textContent = _sortAsc ? '↑' : '↓';
+        closeSortMenu();
+        localStorage.setItem('lib_sort', key);
+        applyFilterAndSort();
+    }
+
+    function setSortDir(asc) {
+        _sortAsc = asc;
+        document.getElementById('sort-arrow').textContent = asc ? '↑' : '↓';
+        document.getElementById('dir-asc').style.visibility = asc ? 'visible' : 'hidden';
+        document.getElementById('dir-desc').style.visibility = asc ? 'hidden' : 'visible';
+        closeSortMenu();
+        localStorage.setItem('lib_sort_asc', asc ? '1' : '0');
+        applyFilterAndSort();
+    }
+
+    function applyFilterAndSort() {
+        const grid = document.querySelector('.book-grid');
+        if (!grid) return;
+        const cards = Array.from(grid.querySelectorAll('.book-card'));
+
+        // Filter
+        cards.forEach(card => {
+            const fmt = card.dataset.format || 'epub';
+            if (_currentFilter === 'all' || fmt === _currentFilter) {
+                card.classList.remove('filtered-out');
+            } else {
+                card.classList.add('filtered-out');
+            }
+        });
+
+        // Sort
+        const visible = cards.slice();
+        visible.sort((a, b) => {
+            let va, vb;
+            switch (_currentSort) {
+                case 'title':
+                    va = (a.dataset.title || '').toLowerCase();
+                    vb = (b.dataset.title || '').toLowerCase();
+                    break;
+                case 'author':
+                    va = (a.dataset.author || '').toLowerCase();
+                    vb = (b.dataset.author || '').toLowerCase();
+                    break;
+                case 'mtime':
+                    va = parseFloat(a.dataset.mtime) || 0;
+                    vb = parseFloat(b.dataset.mtime) || 0;
+                    break;
+                default:
+                    va = ''; vb = '';
+            }
+            let cmp;
+            if (typeof va === 'number') {
+                cmp = va - vb;
+            } else {
+                cmp = va.localeCompare(vb);
+            }
+            return _sortAsc ? cmp : -cmp;
+        });
+
+        // Re-order DOM
+        visible.forEach(card => grid.appendChild(card));
+    }
+
+    function toggleSortMenu(e) {
+        e.stopPropagation();
+        document.getElementById('sort-menu').classList.toggle('open');
+    }
+    function closeSortMenu() {
+        document.getElementById('sort-menu').classList.remove('open');
+    }
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.sort-wrapper')) closeSortMenu();
+    });
+
+    // Restore preferences on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedFilter = localStorage.getItem('lib_filter') || 'all';
+        const savedSort = localStorage.getItem('lib_sort') || 'title';
+        const savedAsc = localStorage.getItem('lib_sort_asc');
+
+        _currentFilter = savedFilter;
+        _currentSort = savedSort;
+        _sortAsc = savedAsc !== null ? savedAsc === '1' : (savedSort === 'mtime' ? false : true);
+
+        // Update filter chips
+        document.querySelectorAll('.filter-chip').forEach(c => {
+            c.classList.toggle('active', c.dataset.filter === _currentFilter);
+        });
+        // Update sort menu and button
+        document.querySelectorAll('.sort-menu-item[data-sort]').forEach(item => {
+            item.classList.toggle('active', item.dataset.sort === _currentSort);
+        });
+        const sortLabel = document.getElementById('sort-label');
+        const sortArrow = document.getElementById('sort-arrow');
+        if (sortLabel) sortLabel.textContent = t('sort-' + _currentSort);
+        if (sortArrow) sortArrow.textContent = _sortAsc ? '↑' : '↓';
+        const dirAsc = document.getElementById('dir-asc');
+        const dirDesc = document.getElementById('dir-desc');
+        if (dirAsc) dirAsc.style.visibility = _sortAsc ? 'visible' : 'hidden';
+        if (dirDesc) dirDesc.style.visibility = _sortAsc ? 'hidden' : 'visible';
+
+        applyFilterAndSort();
+    });
 </script>
 </body>
 </html>

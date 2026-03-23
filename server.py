@@ -643,6 +643,7 @@ async def library_view(request: Request):
             "chapters": meta['chapters'],
             "language": meta['language'],
             "format": meta.get('format', 'epub'),
+            "mtime": meta.get('_mtime', 0),
         })
     return templates.TemplateResponse("library.html", {"request": request, "books": books})
 
