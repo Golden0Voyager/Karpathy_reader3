@@ -86,7 +86,8 @@
         .pdf-search-hl { position: absolute; background: rgba(250, 204, 21, 0.4); z-index: 1; pointer-events: none; border-radius: 1px; }
         .pdf-search-hl.active { background: rgba(249, 115, 22, 0.5); }
 
-        .page-loading { display: flex; justify-content: center; align-items: center; color: var(--secondary); font-size: 0.85rem; min-height: 400px; opacity: 0.5; }
+        .page-loading { display: flex; justify-content: center; align-items: center; color: var(--secondary); font-size: 0.85rem; min-height: 400px; opacity: 0.5; animation: loadPulse 1.5s ease-in-out infinite; }
+        @keyframes loadPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
 
         /* Ghost scrollbars */
         #sidebar, #pdf-viewer, .ai-content { scrollbar-width: none; -ms-overflow-style: none; }
@@ -392,12 +393,12 @@
 
         /* --- Mobile Responsive --- */
         @media (max-width: 768px) {
-            #sidebar { position: fixed; top: 0; left: 0; z-index: 4000; width: 80vw !important; max-width: 300px; height: 100vh; background: var(--surface); transform: translateX(-100%); transition: transform 0.3s var(--transition); }
+            #sidebar { position: fixed; top: 0; left: 0; z-index: 4000; width: 85vw !important; max-width: 320px; height: 100vh; height: 100dvh; background: var(--surface); transform: translateX(-100%); transition: transform 0.3s var(--transition); }
             #sidebar.mobile-open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
-            #sidebar.collapsed { width: 80vw !important; max-width: 300px; transform: translateX(-100%); }
-            #panels-container { position: fixed; top: 0; right: 0; z-index: 4000; width: 100vw !important; max-width: 400px; height: 100vh; height: 100dvh; background: var(--surface); border-left: 1px solid var(--outline); transform: translateX(100%); transition: transform 0.3s var(--transition); }
+            #sidebar.collapsed { width: 85vw !important; max-width: 320px; transform: translateX(-100%); }
+            #panels-container { position: fixed; top: 0; right: 0; z-index: 4000; width: 85vw !important; max-width: 400px; height: 100vh; height: 100dvh; background: var(--surface); border-left: 1px solid var(--outline); transform: translateX(100%); transition: transform 0.3s var(--transition); }
             #panels-container.mobile-open { transform: translateX(0); box-shadow: -4px 0 24px rgba(0,0,0,0.15); }
-            #panels-container.collapsed { width: 100vw !important; max-width: 400px; transform: translateX(100%); }
+            #panels-container.collapsed { width: 85vw !important; max-width: 400px; transform: translateX(100%); }
             #panels-container.collapsed.mobile-open { transform: translateX(0); }
             .resizer { display: none; }
             .mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 3999; }
@@ -657,6 +658,24 @@
     let currentPage = 1;
     let zoomLevel = parseInt(localStorage.getItem(`pdf_zoom_${BOOK_ID}`)) || 0; // 0 = fit width
 
+    /* ========== Render Queue (concurrency limiter) ========== */
+    const RENDER_CONCURRENCY = 3;
+    let _renderQueue = [];
+    let _activeRenders = 0;
+    function enqueueRender(pageNum) {
+        if (pageRendered[pageNum - 1] || renderingPages.has(pageNum) || _renderQueue.includes(pageNum)) return;
+        _renderQueue.push(pageNum);
+        _flushQueue();
+    }
+    function _flushQueue() {
+        while (_renderQueue.length > 0 && _activeRenders < RENDER_CONCURRENCY) {
+            const pn = _renderQueue.shift();
+            if (pageRendered[pn - 1] || renderingPages.has(pn)) continue;
+            _activeRenders++;
+            renderPage(pn).finally(() => { _activeRenders--; _flushQueue(); });
+        }
+    }
+
     /* ========== Zoom Module ========== */
     const Zoom = {
         _pct: 100,
@@ -678,6 +697,8 @@
         _rerender() {
             pageRendered.fill(false);
             renderingPages.clear();
+            _renderQueue = [];
+            _activeRenders = 0;
             pageContainers.forEach((c, i) => {
                 const w = this._getWidth();
                 c.style.width = w + 'px';
@@ -687,7 +708,7 @@
             // Re-observe to trigger rendering of visible pages
             const obs = new IntersectionObserver((entries) => {
                 for (const entry of entries) {
-                    if (entry.isIntersecting) renderPage(parseInt(entry.target.dataset.pageNum));
+                    if (entry.isIntersecting) enqueueRender(parseInt(entry.target.dataset.pageNum));
                 }
             }, { root: viewer, rootMargin: '800px 0px' });
             pageContainers.forEach(c => obs.observe(c));
@@ -820,11 +841,21 @@
 
     /* ========== PDF Loading ========== */
     async function init() {
+        // Loading indicator
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'page-loading';
+        loadingEl.id = 'pdf-loading';
+        loadingEl.textContent = _lang === 'zh' ? '正在加载文档…' : 'Loading document…';
+        viewer.appendChild(loadingEl);
         pageIndicator.textContent = '...';
+
         try { pdfDoc = await getDocument(PDF_URL).promise; } catch (e) {
-            viewer.innerHTML = `<div class="page-loading" style="color:#EF4444">加载失败: ${e.message}</div>`;
+            loadingEl.style.color = '#EF4444';
+            loadingEl.textContent = (_lang === 'zh' ? '加载失败: ' : 'Load failed: ') + e.message;
             return;
         }
+
+        loadingEl.textContent = _lang === 'zh' ? '正在初始化页面…' : 'Initializing pages…';
         const totalPages = pdfDoc.numPages;
         // Get first page to determine base width
         const firstPage = await pdfDoc.getPage(1);
@@ -845,12 +876,27 @@
             pageHeights.push(w * (vp0.height / vp0.width));
         }
 
+        // Render observer — uses enqueueRender for concurrency control
         const observer = new IntersectionObserver((entries) => {
             for (const entry of entries) {
-                if (entry.isIntersecting) renderPage(parseInt(entry.target.dataset.pageNum));
+                if (entry.isIntersecting) enqueueRender(parseInt(entry.target.dataset.pageNum));
             }
         }, { root: viewer, rootMargin: '800px 0px' });
         pageContainers.forEach(c => observer.observe(c));
+
+        // Cleanup observer — reclaim memory for pages far off-screen
+        const cleanupObserver = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                const pn = parseInt(entry.target.dataset.pageNum);
+                if (!entry.isIntersecting && pageRendered[pn - 1]) {
+                    // Page scrolled far away — release canvas memory
+                    const canvas = entry.target.querySelector('canvas');
+                    if (canvas) { canvas.width = 0; canvas.height = 0; }
+                    pageRendered[pn - 1] = false;
+                }
+            }
+        }, { root: viewer, rootMargin: '2000px 0px' });
+        pageContainers.forEach(c => cleanupObserver.observe(c));
 
         viewer.addEventListener('scroll', onScroll, { passive: true });
 
@@ -862,6 +908,13 @@
                 if (pos.scrollTop) setTimeout(() => { viewer.scrollTop = pos.scrollTop; }, 100);
             } catch(e) {}
         }
+
+        // Remove loading indicator after first render completes
+        loadingEl.textContent = _lang === 'zh' ? '正在渲染首屏…' : 'Rendering…';
+        await renderPage(1);
+        loadingEl.style.transition = 'opacity 0.4s ease';
+        loadingEl.style.opacity = '0';
+        setTimeout(() => loadingEl.remove(), 500);
 
         updatePageIndicator();
         TOC.init();
@@ -2042,6 +2095,27 @@
         document.getElementById('panels-container').classList.remove('mobile-open');
         document.getElementById('mobile-overlay').classList.remove('visible');
     });
+
+    // Touch swipe to close on mobile
+    if ('ontouchstart' in window) {
+        let touchStartX = 0;
+        document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+        document.addEventListener('touchend', e => {
+            if (window.innerWidth > 768) return;
+            const deltaX = e.changedTouches[0].clientX - touchStartX;
+            const sidebar = document.getElementById('sidebar');
+            const panels = document.getElementById('panels-container');
+            const overlay = document.getElementById('mobile-overlay');
+            if (sidebar && sidebar.classList.contains('mobile-open') && deltaX < -50) {
+                sidebar.classList.remove('mobile-open');
+                overlay.classList.remove('visible');
+            }
+            if (panels && panels.classList.contains('mobile-open') && deltaX > 50) {
+                panels.classList.remove('mobile-open');
+                overlay.classList.remove('visible');
+            }
+        }, { passive: true });
+    }
 
     // Auto-resize textarea
     document.getElementById('ai-input').addEventListener('input', function() {

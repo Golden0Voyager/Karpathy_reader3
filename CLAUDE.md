@@ -12,17 +12,13 @@
 | `reader3.py` | EPUB 解析模块 |
 | `templates/reader.html` | 阅读器页面（CSS + HTML + JS 单文件） |
 | `templates/library.html` | 图书馆页面（封面墙、上传、Apple Books 扫描） |
-| `tools/_md2pdf.py` | 文档转 PDF（Playwright/Chromium），源文件在 `docs/`，输出到 `package/` |
-| `package/pack.sh` | 发行版打包脚本，自动生成 PDF 并打包为 `reader3-release.zip` |
+| `tools/_md2pdf.py` | 文档转 PDF（Playwright/Chromium），源文件在 `docs/` |
 
 ## 常用命令
 
 ```bash
 # 启动开发服务
-uvicorn server:app --host 0.0.0.0 --port 8000 --reload
-
-# 打包发行版
-cd package && bash pack.sh
+uvicorn server:app --host 0.0.0.0 --port 8123 --reload
 
 # 生成文档 PDF
 python tools/_md2pdf.py
@@ -43,8 +39,8 @@ reader3/
 ├── server.py / reader3.py    # 后端
 ├── templates/                 # 前端页面
 ├── docs/                      # 源文档 (md)
-├── package/                   # 打包相关（pack.sh, setup.sh, start.sh, .env.example, 生成的 PDF）
 ├── tools/                     # 开发工具脚本
+├── assets/                    # 截图、预置电子书
 ├── dict/                      # 词典文件（应用内下载）
 └── books/                     # 导入的电子书数据
 ```

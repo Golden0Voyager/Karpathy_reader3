@@ -32,7 +32,7 @@ AI_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_co
 _PROVIDER_DEFS = {
     'openai':      {'name': 'OpenAI',       'base_url': 'https://api.openai.com/v1/',                           'default_model': 'gpt-4o-mini',                    'format': 'openai'},
     'anthropic':   {'name': 'Anthropic',     'base_url': 'https://api.anthropic.com/v1/',                        'default_model': 'claude-sonnet-4-20250514',       'format': 'anthropic'},
-    'gemini':      {'name': 'Google Gemini', 'base_url': '',                                                     'default_model': 'gemini-2.5-flash',               'format': 'gemini'},
+    'gemini':      {'name': 'Google Gemini', 'base_url': '',                                                     'default_model': 'gemini-3-flash-preview',               'format': 'gemini'},
     'deepseek':    {'name': 'DeepSeek',      'base_url': 'https://api.deepseek.com/v1/',                         'default_model': 'deepseek-chat',                  'format': 'openai'},
     'grok':        {'name': 'Grok (xAI)',    'base_url': 'https://api.x.ai/v1/',                                 'default_model': 'grok-3-mini-fast',               'format': 'openai'},
     'dashscope':   {'name': '阿里云百炼',     'base_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1/',   'default_model': 'qwen-plus',                      'format': 'openai'},
@@ -88,7 +88,7 @@ def _get_builtin_providers():
     builtins = []
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if gemini_key:
-        builtins.append(('gemini', gemini_key, 'gemini-2.5-flash'))
+        builtins.append(('gemini', gemini_key, 'gemini-3-flash-preview'))
     zhipu_key = os.getenv("ZHIPUAI_API_KEY")
     if zhipu_key:
         builtins.append(('zhipuai', zhipu_key, 'glm-4.7-flash'))
@@ -1975,6 +1975,37 @@ async def set_cover_from_url(book_id: str, req: dict):
         raise HTTPException(status_code=500, detail=f"Failed to download cover: {str(e)}")
 
 
+def auto_import_default_books():
+    """Scan assets/ for specific default EPUBs and import them if not already in library."""
+    default_book = os.path.join("assets", "Meditations by Emperor of Rome Marcus Aurelius.epub")
+    if not os.path.exists(default_book):
+        return
+
+    # Check if already imported (basic folder name check)
+    book_filename = os.path.basename(default_book)
+    book_id = os.path.splitext(book_filename)[0].replace(" ", "_")
+    book_data_path = os.path.join(BOOKS_DIR, book_id)
+    
+    if not os.path.exists(book_data_path):
+        print(f"📦 First run detected: Auto-importing '{book_filename}'...")
+        try:
+            # Silence internal prints during auto-import
+            import sys
+            import io
+            old_stdout = sys.stdout
+            sys.stdout = io.StringIO()
+            
+            process_epub(default_book, BOOKS_DIR)
+            
+            sys.stdout = old_stdout
+            print(f"✅ Successfully imported '{book_filename}'.")
+        except Exception as e:
+            print(f"❌ Failed to auto-import '{book_filename}': {e}")
+
+
 if __name__ == "__main__":
     import uvicorn
+    # Perform auto-import before starting server
+    auto_import_default_books()
     uvicorn.run(app, host="127.0.0.1", port=8123)
+
