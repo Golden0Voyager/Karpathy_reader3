@@ -69,21 +69,13 @@
         #notebook-panel::-webkit-scrollbar-thumb, #search-panel .sp-results::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
 
         /* --- 3. Satellite Controls & Audio Floating Console --- */
-        .toggle-btn {
-            position: fixed; width: 30px; height: 30px;
-            background: color-mix(in srgb, var(--surface) 95%, transparent); backdrop-filter: blur(12px);
-            border: 1.2px solid var(--outline); border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 2000; color: var(--secondary);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-            transition: all 0.3s var(--transition), border-color 0.2s;
-        }
+        .toggle-group { position: fixed; top: 20px; left: 24px; z-index: 2000; display: flex; gap: 8px; transition: left 0.3s var(--transition); }
+        #sidebar:not(.collapsed) ~ .toggle-group { left: calc(var(--sidebar-width) + 24px); }
+        .toggle-btn { width: 34px; height: 34px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1.2px solid var(--outline); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--secondary); transition: all 0.3s var(--transition), border-color 0.2s; box-shadow: 0 4px 16px rgba(0,0,0,0.06); fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
         .toggle-btn:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
-        .toggle-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
-        
-        /* Top Satellites */
-        #toggle-right { top: 24px; right: calc(var(--panels-width) + 24px); }
-        #panels-container.collapsed ~ #toggle-right { right: 24px; }
+        .toggle-btn svg { width: 18px; height: 18px; }
+        #toggle-right { position: fixed; top: 20px; right: 24px; z-index: 2000; transition: transform 0.3s ease, right 0.3s var(--transition); }
+        #panels-container:not(.collapsed) ~ #toggle-right { right: calc(var(--panels-width) + 24px); }
 
         /* Left button group: menu + sub-buttons */
         .toggle-group {
@@ -1171,26 +1163,26 @@
         @media (max-width: 768px) {
             /* Sidebar: off-screen left drawer */
             #sidebar {
-                position: fixed; top: 0; left: 0; width: 280px !important;
+                position: fixed; top: 0; left: 0; width: 85vw !important; max-width: 320px;
                 height: 100vh; height: 100dvh; z-index: 4000;
                 background: var(--surface); border-right: 1px solid var(--outline);
                 transform: translateX(-100%); transition: transform 0.3s var(--transition);
                 padding-top: 60px;
             }
             #sidebar.mobile-open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
-            #sidebar.collapsed { width: 280px !important; transform: translateX(-100%); }
+            #sidebar.collapsed { width: 85vw !important; max-width: 320px; transform: translateX(-100%); }
             #sidebar.collapsed.mobile-open { transform: translateX(0); }
 
             /* Panels: off-screen right drawer */
             #panels-container {
                 position: fixed; top: 0; right: 0; z-index: 4000;
-                width: 100vw !important; max-width: 400px;
+                width: 85vw !important; max-width: 400px;
                 height: 100vh; height: 100dvh;
                 background: var(--surface); border-left: 1px solid var(--outline);
                 transform: translateX(100%); transition: transform 0.3s var(--transition);
             }
             #panels-container.mobile-open { transform: translateX(0); box-shadow: -4px 0 24px rgba(0,0,0,0.15); }
-            #panels-container.collapsed { width: 100vw !important; max-width: 400px; transform: translateX(100%); }
+            #panels-container.collapsed { width: 85vw !important; max-width: 400px; transform: translateX(100%); }
             #panels-container.collapsed.mobile-open { transform: translateX(0); }
 
             /* Overlay backdrop */
@@ -1371,6 +1363,15 @@
             </div>
         </div>
     </div>
+    <script>
+        // Immediately restore panel collapsed states to prevent flash on chapter navigation
+        if (sessionStorage.getItem('panels_collapsed') === '1') {
+            document.getElementById('panels-container').classList.add('collapsed');
+        }
+        if (sessionStorage.getItem('sidebar_collapsed') === '1') {
+            document.getElementById('sidebar').classList.add('collapsed');
+        }
+    </script>
 
     <!-- Voice & Speed Popups (fixed, outside panels) -->
     <div id="voice-popup" class="audio-popup"><div class="audio-popup-list" id="voice-popup-list"></div></div>
@@ -4663,6 +4664,26 @@
             _closeAllPanels();
             _overlay.classList.remove('visible');
         });
+
+        // Touch swipe to close on mobile
+        if ('ontouchstart' in window) {
+            let touchStartX = 0;
+            document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+            document.addEventListener('touchend', e => {
+                if (!_isMobile()) return;
+                const deltaX = e.changedTouches[0].clientX - touchStartX;
+                const sidebar = document.getElementById('sidebar');
+                const panels = document.getElementById('panels-container');
+                if (sidebar && sidebar.classList.contains('mobile-open') && deltaX < -50) {
+                    sidebar.classList.remove('mobile-open');
+                    _overlay.classList.remove('visible');
+                }
+                if (panels && panels.classList.contains('mobile-open') && deltaX > 50) {
+                    panels.classList.remove('mobile-open');
+                    _overlay.classList.remove('visible');
+                }
+            }, { passive: true });
+        }
         window.toggleLeft = () => {
             if (_isMobile()) {
                 const sb = document.getElementById('sidebar');
@@ -5219,12 +5240,8 @@
         const savedScroll = sessionStorage.getItem('sidebar_scroll');
         if (savedScroll) document.getElementById('sidebar').scrollTop = parseInt(savedScroll);
 
-        // Restore panel collapsed states
-        if (sessionStorage.getItem('sidebar_collapsed') === '1') {
-            document.getElementById('sidebar').classList.add('collapsed');
-        }
+        // Restore panel collapsed states (toggle-right rotated state)
         if (sessionStorage.getItem('panels_collapsed') === '1') {
-            document.getElementById('panels-container').classList.add('collapsed');
             document.getElementById('toggle-right').classList.add('rotated');
         }
         function _getParas() {

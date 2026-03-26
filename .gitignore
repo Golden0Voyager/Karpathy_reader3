@@ -9,6 +9,7 @@
 
 # EPUB source files
 *.epub
+!assets/Meditations by Emperor of Rome Marcus Aurelius.epub
 
 # Dictionary data
 dict/
@@ -27,14 +28,6 @@ __pycache__/
 # AI config (contains API keys)
 ai_config.json
 
-# Package build artifacts
-package/*.pdf
-package/reader3-release/
-package/reader3-release.zip
-# Allow .env.example (overrides parent .env.* rule)
-!package/.env.example
-package/*.epub
-
 # --- bkit / PDCA metadata ---
 docs/.pdca-snapshots/
 docs/.pdca-status.json
@@ -43,6 +36,7 @@ docs/.bkit-memory.json
 # 敏感环境配置文件（截获 .env）
 .env
 .env.*
+!.env.example
 
 # 插件及工具生成的本地配置（截获 settings.local.json）
 settings.local.json

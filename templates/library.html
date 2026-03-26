@@ -564,8 +564,8 @@
         {% if not books %}
         <div class="empty-state" onclick="document.getElementById('file-input').click()">
             <div class="empty-icon">📖</div>
-            <p class="empty-text">No books yet</p>
-            <p class="empty-hint">Drop an EPUB or PDF here, or import from <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openAppleBooks();">Apple Books</a></p>
+            <p class="empty-text" data-t="empty-title">No books yet</p>
+            <p class="empty-hint"><span data-t="empty-hint1">Drop an EPUB or PDF here, or import from </span><a href="#" onclick="event.preventDefault(); event.stopPropagation(); openAppleBooks();" data-t="ab-title-link">Apple Books</a></p>
         </div>
         {% endif %}
 
@@ -616,15 +616,15 @@
     <!-- Cover search modal -->
     <div class="cover-modal-overlay" id="cover-modal" onclick="if(event.target===this)closeCoverModal()">
         <div class="cover-modal">
-            <h3 id="cover-modal-title">Select Cover</h3>
+            <h3 id="cover-modal-title" data-t="select-cover">Select Cover</h3>
             <div class="cover-search-bar">
-                <input type="text" id="cover-search-input" placeholder="修改搜索关键词..." onkeydown="if(event.key==='Enter')searchCoverByQuery()">
-                <button onclick="searchCoverByQuery()">搜索</button>
+                <input type="text" id="cover-search-input" data-t="cover-search-placeholder" placeholder="修改搜索关键词..." onkeydown="if(event.key==='Enter')searchCoverByQuery()">
+                <button onclick="searchCoverByQuery()" data-t="search">搜索</button>
             </div>
-            <div id="cover-modal-content"><div class="loading">Searching...</div></div>
+            <div id="cover-modal-content"><div class="loading" data-t="searching">Searching...</div></div>
             <div class="cover-modal-actions">
-                <button class="cover-modal-btn cancel" onclick="closeCoverModal()">Skip</button>
-                <button class="cover-modal-btn confirm" id="cover-confirm-btn" disabled onclick="confirmCover()">Use This Cover</button>
+                <button class="cover-modal-btn cancel" onclick="closeCoverModal()" data-t="skip">Skip</button>
+                <button class="cover-modal-btn confirm" id="cover-confirm-btn" disabled onclick="confirmCover()" data-t="use-cover">Use This Cover</button>
             </div>
         </div>
     </div>
@@ -632,11 +632,11 @@
     <!-- Rename modal -->
     <div class="rename-overlay" id="rename-modal" onclick="if(event.target===this)closeRenameModal()">
         <div class="rename-modal">
-            <h3>重命名</h3>
-            <input type="text" id="rename-input" placeholder="输入新书名..." onkeydown="if(event.key==='Enter')confirmRename()">
+            <h3 data-t="rename-title">重命名</h3>
+            <input type="text" id="rename-input" data-t="rename-placeholder" placeholder="输入新书名..." onkeydown="if(event.key==='Enter')confirmRename()">
             <div class="rename-modal-actions">
-                <button class="cover-modal-btn cancel" onclick="closeRenameModal()">取消</button>
-                <button class="cover-modal-btn confirm" id="rename-confirm-btn" onclick="confirmRename()">确定</button>
+                <button class="cover-modal-btn cancel" onclick="closeRenameModal()" data-t="cancel">取消</button>
+                <button class="cover-modal-btn confirm" id="rename-confirm-btn" onclick="confirmRename()" data-t="confirm">确定</button>
             </div>
         </div>
     </div>
@@ -671,22 +671,22 @@
             <div class="modal-header">
                 <h2>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                    Apple Books
+                    <span data-t="ab-title">Apple Books</span>
                 </h2>
                 <label class="select-all-label">
                     <input type="checkbox" id="ab-select-all" onchange="toggleSelectAll(this.checked)">
-                    Select all
+                    <span data-t="ab-select-all">Select all</span>
                 </label>
             </div>
-            <div class="subtitle">Select books to import</div>
+            <div class="subtitle" data-t="ab-subtitle">Select books to import</div>
             <div class="modal-list" id="ab-list">
-                <div class="modal-loading">Loading...</div>
+                <div class="modal-loading" data-t="searching">Loading...</div>
             </div>
             <div class="modal-footer">
                 <div class="modal-selected" id="ab-selected-count">0 selected</div>
                 <div class="modal-actions">
-                    <button class="modal-btn cancel" onclick="closeAppleBooks()">Cancel</button>
-                    <button class="modal-btn confirm" id="ab-import-btn" disabled onclick="importSelected()">Import</button>
+                    <button class="modal-btn cancel" onclick="closeAppleBooks()" data-t="cancel">Cancel</button>
+                    <button class="modal-btn confirm" id="ab-import-btn" disabled onclick="importSelected()" data-t="btn-import">Import</button>
                 </div>
             </div>
         </div>
@@ -737,7 +737,15 @@
             'sort-author': '按作者',
             'sort-mtime': '按添加时间',
             'sort-asc': '正序 A→Z',
-            'sort-desc': '倒序 Z→A'
+            'sort-desc': '倒序 Z→A',
+            'cover-search-placeholder': '修改搜索关键词...',
+            'search': '搜索',
+            'ab-select-all': '全选',
+            'empty-title': '暂无书籍',
+            'empty-hint1': '将 EPUB 或 PDF 拖拽至此，或从 ',
+            'ab-title-link': 'Apple 图书导入',
+            'imported': '已导入',
+            'unknown-author': '未知作者'
         },
         en: {
             'importing': 'Importing...',
@@ -782,7 +790,15 @@
             'sort-author': 'By Author',
             'sort-mtime': 'By Date Added',
             'sort-asc': 'Ascending A→Z',
-            'sort-desc': 'Descending Z→A'
+            'sort-desc': 'Descending Z→A',
+            'cover-search-placeholder': 'Modify search query...',
+            'search': 'Search',
+            'ab-select-all': 'Select all',
+            'empty-title': 'No books yet',
+            'empty-hint1': 'Drop an EPUB or PDF here, or import from ',
+            'ab-title-link': 'Apple Books',
+            'imported': 'Imported',
+            'unknown-author': 'Unknown'
         }
     };
 
@@ -1107,9 +1123,9 @@
                 <img class="modal-cover" src="/api/apple-books/cover/${b.asset_id}" alt="" onerror="this.style.background='linear-gradient(135deg,#e8e0f0,#d0c4e0)'">
                 <div class="modal-item-info">
                     <div class="modal-item-title" title="${b.title}">${b.title}</div>
-                    <div class="modal-item-meta">${b.author||'Unknown'} &middot; ${b.size_mb} MB</div>
+                    <div class="modal-item-meta">${b.author||t('unknown-author')} &middot; ${b.size_mb} MB</div>
                 </div>
-                ${b.imported?'<span class="modal-item-badge imported-badge">Imported</span>':''}
+                ${b.imported?`<span class="modal-item-badge imported-badge">${t('imported')}</span>`:''}
                 <span class="modal-item-badge" id="ab-badge-${i}" style="display:none"></span>
             </div>
         `).join(''); updateSelectedCount();
